@@ -21,8 +21,8 @@
             --slider-track-height: 8px;
             --slider-thumb-offset: -10px;
             /* Legacy aliases for existing code */
-            --chase: var(--play);
-            --freeze: var(--pose);
+            --play: var(--play);
+            --pose: var(--pose);
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
@@ -474,12 +474,12 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        .playlist-use-btn.chase {
-            background: var(--chase);
+        .playlist-use-btn.play {
+            background: var(--play);
             color: white;
         }
-        .playlist-use-btn.freeze {
-            background: var(--freeze);
+        .playlist-use-btn.pose {
+            background: var(--pose);
             color: white;
         }
         .playlist-use-btn:hover { opacity: 0.85; }
@@ -511,8 +511,8 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        .selected-slot-label.chase { color: var(--chase); }
-        .selected-slot-label.freeze { color: var(--freeze); }
+        .selected-slot-label.play { color: var(--play); }
+        .selected-slot-label.pose { color: var(--pose); }
         .selected-slot-title {
             font-size: clamp(11px, 2.8vmin, 13px);
             opacity: 0.8;
@@ -807,17 +807,17 @@
 
 <!-- YouTube Video Background -->
 <div class="yt-background" id="ytBackground">
-    <div class="yt-wrapper" id="chaseWrapper">
-        <div id="chaseYT"></div>
+    <div class="yt-wrapper" id="playWrapper">
+        <div id="playYT"></div>
     </div>
-    <div class="yt-wrapper" id="freezeWrapper">
-        <div id="freezeYT"></div>
+    <div class="yt-wrapper" id="poseWrapper">
+        <div id="poseYT"></div>
     </div>
 </div>
 <div class="video-overlay" id="videoOverlay"></div>
 
-<audio id="chaseAudio" playsinline></audio>
-<audio id="freezeAudio" playsinline></audio>
+<audio id="playAudio" playsinline></audio>
+<audio id="poseAudio" playsinline></audio>
 
 <div class="container">
     <div id="command">Play · Pose</div>
@@ -894,12 +894,12 @@
             </div>
             <div class="selected-playlists">
                 <div class="selected-slot">
-                    <div class="selected-slot-label chase">Play</div>
-                    <div class="selected-slot-title" id="selectedChase">Not selected</div>
+                    <div class="selected-slot-label play">Play</div>
+                    <div class="selected-slot-title" id="selectedPlay">Not selected</div>
                 </div>
                 <div class="selected-slot">
-                    <div class="selected-slot-label freeze">Pose</div>
-                    <div class="selected-slot-title" id="selectedFreeze">Not selected</div>
+                    <div class="selected-slot-label pose">Pose</div>
+                    <div class="selected-slot-title" id="selectedPose">Not selected</div>
                 </div>
             </div>
         </div>
@@ -907,19 +907,19 @@
         <div class="music-panel active" id="localPanel">
             <div class="file-input-wrapper">
                 <label>Play Music</label>
-                <input type="file" id="chaseFiles" accept="audio/*" multiple>
-                <div class="file-name" id="chaseName">No files selected</div>
+                <input type="file" id="playFiles" accept="audio/*" multiple>
+                <div class="file-name" id="playName">No files selected</div>
             </div>
             <div class="file-input-wrapper">
                 <label>Pose Music</label>
-                <input type="file" id="freezeFiles" accept="audio/*" multiple>
-                <div class="file-name" id="freezeName">No files selected</div>
+                <input type="file" id="poseFiles" accept="audio/*" multiple>
+                <div class="file-name" id="poseName">No files selected</div>
             </div>
         </div>
 
         <div class="music-panel" id="ytPanel">
-            <input type="text" class="url-input" id="chaseURL" placeholder="Play: Paste YouTube URL">
-            <input type="text" class="url-input" id="freezeURL" placeholder="Pose: Paste YouTube URL">
+            <input type="text" class="url-input" id="playURL" placeholder="Play: Paste YouTube URL">
+            <input type="text" class="url-input" id="poseURL" placeholder="Pose: Paste YouTube URL">
             <button class="sample-btn" id="sampleBtn">Load Sample Music</button>
             <div class="help-text">Tip: YouTube won't play when screen is off on mobile. Use local files for that.</div>
         </div>
@@ -1047,12 +1047,12 @@ const Game = {
     source: 'local',
 
     // Playlists
-    chaseTracks: [], freezeTracks: [],
-    chaseIdx: 0, freezeIdx: 0,
+    playTracks: [], poseTracks: [],
+    playIdx: 0, poseIdx: 0,
 
     // YouTube
-    chasePlayer: null, freezePlayer: null,
-    chaseReady: false, freezeReady: false,
+    playPlayer: null, posePlayer: null,
+    playReady: false, poseReady: false,
 
     dom: {},
 
@@ -1116,11 +1116,11 @@ const Game = {
             'volSlider', 'volValue',
             'browseTab', 'localTab', 'ytTab', 'browsePanel', 'localPanel', 'ytPanel',
             'moodGrid', 'playlistSearch', 'searchBtn', 'playlistResults',
-            'selectedChase', 'selectedFreeze',
-            'chaseFiles', 'freezeFiles', 'chaseName', 'freezeName',
-            'chaseURL', 'freezeURL', 'sampleBtn',
+            'selectedPlay', 'selectedPose',
+            'playFiles', 'poseFiles', 'playName', 'poseName',
+            'playURL', 'poseURL', 'sampleBtn',
             'showTimer', 'skipIntro', 'shuffle', 'muteVoice',
-            'chaseAudio', 'freezeAudio', 'ytBackground', 'videoOverlay', 'chaseWrapper', 'freezeWrapper'
+            'playAudio', 'poseAudio', 'ytBackground', 'videoOverlay', 'playWrapper', 'poseWrapper'
         ];
         this.dom = ids.reduce((acc, id) => {
             const key = id === 'startButton' ? 'startBtn' : id;
@@ -1174,24 +1174,24 @@ const Game = {
         };
 
         // Files
-        this.dom.chaseFiles.onchange = e => this.loadFiles(e, 'chase');
-        this.dom.freezeFiles.onchange = e => this.loadFiles(e, 'freeze');
+        this.dom.playFiles.onchange = e => this.loadFiles(e, 'play');
+        this.dom.poseFiles.onchange = e => this.loadFiles(e, 'pose');
 
         // Audio ended
-        this.dom.chaseAudio.onended = () => this.nextTrack('chase');
-        this.dom.freezeAudio.onended = () => this.nextTrack('freeze');
+        this.dom.playAudio.onended = () => this.nextTrack('play');
+        this.dom.poseAudio.onended = () => this.nextTrack('pose');
 
         // Audio errors - skip to next track on failure
-        this.dom.chaseAudio.onerror = () => {
+        this.dom.playAudio.onerror = () => {
             if (this.state !== 'IDLE') {
                 this.showToast('Audio error - skipping track');
-                this.nextTrack('chase');
+                this.nextTrack('play');
             }
         };
-        this.dom.freezeAudio.onerror = () => {
+        this.dom.poseAudio.onerror = () => {
             if (this.state !== 'IDLE') {
                 this.showToast('Audio error - skipping track');
-                this.nextTrack('freeze');
+                this.nextTrack('pose');
             }
         };
 
@@ -1205,7 +1205,7 @@ const Game = {
         this.dom.muteVoice.onchange = () => this.save();
 
         // URL inputs
-        [this.dom.chaseURL, this.dom.freezeURL].forEach(input => {
+        [this.dom.playURL, this.dom.poseURL].forEach(input => {
             input.onchange = () => {
                 if (input.value && input.value.includes('list=RD')) {
                     this.showToast('Mix playlists not supported - using video only');
@@ -1217,8 +1217,8 @@ const Game = {
         // Sample button
         this.dom.sampleBtn.onclick = () => {
             const playlist = 'https://www.youtube.com/watch?v=n6N1_sxlBU8&list=PLDEoYTx7cT4dC7dkTTYi1exK5iYVtBw0B';
-            this.dom.chaseURL.value = playlist;
-            this.dom.freezeURL.value = playlist;
+            this.dom.playURL.value = playlist;
+            this.dom.poseURL.value = playlist;
             this.save();
             this.showToast('Sample playlist loaded!');
         };
@@ -1352,8 +1352,8 @@ const Game = {
                     <div class="playlist-desc">${this.escapeHtml(pl.description || '')}</div>
                 </div>
                 <div class="playlist-actions">
-                    <button class="playlist-use-btn chase" data-type="chase">Play</button>
-                    <button class="playlist-use-btn freeze" data-type="freeze">Pose</button>
+                    <button class="playlist-use-btn play" data-type="play">Play</button>
+                    <button class="playlist-use-btn pose" data-type="pose">Pose</button>
                 </div>
             </div>
         `).join('');
@@ -1408,17 +1408,17 @@ const Game = {
     setVolume(v) {
         const vol = v / 100;
         this._pendingVolume = v; // Store for YouTube players not yet ready
-        this.dom.chaseAudio.volume = vol;
-        this.dom.freezeAudio.volume = vol;
+        this.dom.playAudio.volume = vol;
+        this.dom.poseAudio.volume = vol;
         // For YouTube: only set volume on the ACTIVE player, keep inactive muted
         if (this.source === 'youtube' && this.state !== 'IDLE') {
-            const activeType = this.state === 'CHASE' ? 'chase' : 'freeze';
+            const activeType = this.state === 'PLAY' ? 'play' : 'pose';
             const player = this.getPlayer(activeType);
             if (player && this.isReady(activeType)) {
                 this.safeExec(() => player.setVolume(v));
             }
         } else {
-            ['chase', 'freeze'].forEach(type => {
+            ['play', 'pose'].forEach(type => {
                 const player = this.getPlayer(type);
                 if (player && this.isReady(type)) {
                     this.safeExec(() => player.setVolume(v));
@@ -1447,16 +1447,16 @@ const Game = {
             timing: this.dom.timingSlider.value,
             volume: this.dom.volSlider.value,
             uiSource: this._uiSource || this.source,
-            chaseURL: this.dom.chaseURL.value,
-            freezeURL: this.dom.freezeURL.value,
-            selectedChaseTitle: this.dom.selectedChase.textContent,
-            selectedFreezeTitle: this.dom.selectedFreeze.textContent,
+            playURL: this.dom.playURL.value,
+            poseURL: this.dom.poseURL.value,
+            selectedPlayTitle: this.dom.selectedPlay.textContent,
+            selectedPoseTitle: this.dom.selectedPose.textContent,
             showTimer: this.dom.showTimer.checked,
             skipIntro: this.dom.skipIntro.checked,
             shuffle: this.dom.shuffle.checked,
             muteVoice: this.dom.muteVoice.checked
         };
-        this.safeExec(() => localStorage.setItem('chasefreeze_v7', JSON.stringify(data)));
+        this.safeExec(() => localStorage.setItem('playpose_v7', JSON.stringify(data)));
     },
 
     // Debounced save to prevent excessive localStorage writes
@@ -1470,9 +1470,9 @@ const Game = {
     load() {
         this.safeExec(() => {
             // Try new format first, fall back to old
-            let data = JSON.parse(localStorage.getItem('chasefreeze_v7'));
+            let data = JSON.parse(localStorage.getItem('playpose_v7'));
             if (!data) {
-                data = JSON.parse(localStorage.getItem('chasefreeze_v6'));
+                data = JSON.parse(localStorage.getItem('playpose_v6'));
             }
             if (!data) return;
 
@@ -1498,14 +1498,14 @@ const Game = {
             // Handle both old 'source' and new 'uiSource' formats
             const srcToLoad = data.uiSource || data.source;
             if (srcToLoad) this.setSource(srcToLoad);
-            if (data.chaseURL) this.dom.chaseURL.value = data.chaseURL;
-            if (data.freezeURL) this.dom.freezeURL.value = data.freezeURL;
+            if (data.playURL) this.dom.playURL.value = data.playURL;
+            if (data.poseURL) this.dom.poseURL.value = data.poseURL;
             // Restore selected playlist titles for browse panel
-            if (data.selectedChaseTitle && data.selectedChaseTitle !== 'Not selected') {
-                this.dom.selectedChase.textContent = data.selectedChaseTitle;
+            if (data.selectedPlayTitle && data.selectedPlayTitle !== 'Not selected') {
+                this.dom.selectedPlay.textContent = data.selectedPlayTitle;
             }
-            if (data.selectedFreezeTitle && data.selectedFreezeTitle !== 'Not selected') {
-                this.dom.selectedFreeze.textContent = data.selectedFreezeTitle;
+            if (data.selectedPoseTitle && data.selectedPoseTitle !== 'Not selected') {
+                this.dom.selectedPose.textContent = data.selectedPoseTitle;
             }
             if (data.showTimer !== undefined) this.dom.showTimer.checked = data.showTimer;
             if (data.skipIntro !== undefined) this.dom.skipIntro.checked = data.skipIntro;
@@ -1570,14 +1570,14 @@ const Game = {
         this.setIdx(type, newIdx);
         this.loadTrack(type);
 
-        const isActive = (type === 'chase' && this.state === 'CHASE') ||
-                         (type === 'freeze' && this.state === 'FREEZE');
+        const isActive = (type === 'play' && this.state === 'PLAY') ||
+                         (type === 'pose' && this.state === 'POSE');
         if (isActive) this.playAudio(this.getAudio(type));
     },
 
     // Get random track index avoiding recent history (for local audio shuffle)
     getRandomTrackIndex(type, playlistLength) {
-        if (!this._localShuffleHistory) this._localShuffleHistory = { chase: [], freeze: [] };
+        if (!this._localShuffleHistory) this._localShuffleHistory = { play: [], pose: [] };
         const history = this._localShuffleHistory[type] || [];
         const currentIdx = this.getIdx(type);
         const maxHistory = Math.min(SHUFFLE.MAX_HISTORY, Math.floor(playlistLength * SHUFFLE.HISTORY_RATIO));
@@ -1751,7 +1751,7 @@ const Game = {
                 onError: e => {
                     this.showToast(`${type}: ${YT_ERRORS[e.data] || 'Error'} - skipping`);
                     // Auto-skip to next video on error (with max retry limit to prevent infinite loops)
-                    if (!this._ytErrorCount) this._ytErrorCount = { chase: 0, freeze: 0 };
+                    if (!this._ytErrorCount) this._ytErrorCount = { play: 0, pose: 0 };
                     this._ytErrorCount[type]++;
                     if (this._ytErrorCount[type] <= 5) {
                         setTimeout(() => {
@@ -1777,32 +1777,32 @@ const Game = {
     },
 
     createYTPlayers() {
-        const chaseParsed = this.parseYT(this.dom.chaseURL.value);
-        const freezeParsed = this.parseYT(this.dom.freezeURL.value);
-        this.createSinglePlayer('chase', chaseParsed);
-        this.createSinglePlayer('freeze', freezeParsed);
+        const playParsed = this.parseYT(this.dom.playURL.value);
+        const poseParsed = this.parseYT(this.dom.poseURL.value);
+        this.createSinglePlayer('play', playParsed);
+        this.createSinglePlayer('pose', poseParsed);
         return true;
     },
 
     waitForYTReady(timeout = 10000) {
         return new Promise(resolve => {
             const start = Date.now();
-            const needChase = !!this.dom.chaseURL.value.trim();
-            const needFreeze = !!this.dom.freezeURL.value.trim();
+            const needPlay = !!this.dom.playURL.value.trim();
+            const needPose = !!this.dom.poseURL.value.trim();
 
             const check = () => {
-                const chaseReady = this.chaseReady;
-                const freezeReady = this.freezeReady;
-                const chaseOK = !needChase || chaseReady;
-                const freezeOK = !needFreeze || freezeReady;
+                const playReady = this.playReady;
+                const poseReady = this.poseReady;
+                const playOK = !needPlay || playReady;
+                const poseOK = !needPose || poseReady;
 
-                if (chaseOK && freezeOK) {
+                if (playOK && poseOK) {
                     resolve(true);
                     return;
                 }
 
                 if (Date.now() - start > timeout) {
-                    resolve(chaseReady || freezeReady);
+                    resolve(playReady || poseReady);
                     return;
                 }
 
@@ -1814,7 +1814,7 @@ const Game = {
     },
 
     destroyYT() {
-        ['chase', 'freeze'].forEach(type => {
+        ['play', 'pose'].forEach(type => {
             const player = this.getPlayer(type);
             if (player) this.safeExec(() => player.destroy());
             this[`${type}Player`] = null;
@@ -1828,8 +1828,8 @@ const Game = {
         const playlist = this.safeExec(() => player.getPlaylist());
         if (Array.isArray(playlist) && playlist.length > 1) {
             // Initialize history tracking
-            if (!this._shuffleHistory) this._shuffleHistory = { chase: [], freeze: [] };
-            const playerType = type || 'chase';
+            if (!this._shuffleHistory) this._shuffleHistory = { play: [], pose: [] };
+            const playerType = type || 'play';
             const history = this._shuffleHistory[playerType] || [];
             const currentIndex = this.safeExec(() => player.getPlaylistIndex()) ?? -1;
             const maxHistory = Math.min(SHUFFLE.MAX_HISTORY, Math.floor(playlist.length * SHUFFLE.HISTORY_RATIO));
@@ -1908,7 +1908,7 @@ const Game = {
         if (this.state === 'IDLE' || this._inTransition) {
             return;
         }
-        const type = this.state === 'CHASE' ? 'chase' : 'freeze';
+        const type = this.state === 'PLAY' ? 'play' : 'pose';
         this.source === 'youtube' ? this.skipYT(type) : this.nextTrack(type);
         this.showToast('Skipped!');
     },
@@ -1934,8 +1934,8 @@ const Game = {
 
     resumeAudio() {
         if (this.state === 'IDLE') return;
-        const type = this.state === 'CHASE' ? 'chase' : 'freeze';
-        const otherType = type === 'chase' ? 'freeze' : 'chase';
+        const type = this.state === 'PLAY' ? 'play' : 'pose';
+        const otherType = type === 'play' ? 'pose' : 'play';
 
         if (this.source === 'youtube') {
             // Just resume playback - don't shuffle or seek
@@ -1972,10 +1972,10 @@ const Game = {
 
         if (this.source === 'youtube') {
             // Check if URLs are set
-            const chaseUrl = this.dom.chaseURL.value.trim();
-            const freezeUrl = this.dom.freezeURL.value.trim();
+            const playUrl = this.dom.playURL.value.trim();
+            const poseUrl = this.dom.poseURL.value.trim();
 
-            if (!chaseUrl && !freezeUrl) {
+            if (!playUrl && !poseUrl) {
                 this.showToast('Select playlists for Play and Pose first');
                 this.dom.startBtn.disabled = false;
                 return;
@@ -1988,8 +1988,8 @@ const Game = {
             }
             this.dom.ytBackground.classList.add('visible');
             this.dom.videoOverlay.classList.add('visible');
-            this.dom.chaseWrapper.classList.remove('hidden');
-            this.dom.freezeWrapper.classList.add('hidden');
+            this.dom.playWrapper.classList.remove('hidden');
+            this.dom.poseWrapper.classList.add('hidden');
 
             const ready = await this.waitForYTReady(10000);
             if (!ready) {
@@ -2002,47 +2002,47 @@ const Game = {
             // Start both players for pre-buffering
             const targetVol = +this.dom.volSlider.value;
 
-            // Start chase player (will be active first) at target volume
-            if (this.chasePlayer && this.chaseReady) {
+            // Start play player (will be active first) at target volume
+            if (this.playPlayer && this.playReady) {
                 this.safeExec(() => {
-                    this.chasePlayer.setVolume(targetVol);
+                    this.playPlayer.setVolume(targetVol);
                     if (this.dom.shuffle.checked) {
                         // shuffleToRandom handles skip internally
-                        this.shuffleToRandom(this.chasePlayer, 'chase');
+                        this.shuffleToRandom(this.playPlayer, 'play');
                     } else {
-                        this.chasePlayer.playVideo();
+                        this.playPlayer.playVideo();
                         // Seek immediately for skip intro
                         if (this.dom.skipIntro.checked) {
-                            this.chasePlayer.seekTo(AUDIO.SKIP_SECONDS, true);
+                            this.playPlayer.seekTo(AUDIO.SKIP_SECONDS, true);
                         }
                     }
                 });
             }
 
-            // Start freeze player (will be inactive) muted at volume 0
-            if (this.freezePlayer && this.freezeReady) {
+            // Start pose player (will be inactive) muted at volume 0
+            if (this.posePlayer && this.poseReady) {
                 this.safeExec(() => {
-                    this.freezePlayer.setVolume(0);
+                    this.posePlayer.setVolume(0);
                     if (this.dom.shuffle.checked) {
                         // shuffleToRandom handles skip internally
-                        this.shuffleToRandom(this.freezePlayer, 'freeze');
+                        this.shuffleToRandom(this.posePlayer, 'pose');
                     } else {
-                        this.freezePlayer.playVideo();
+                        this.posePlayer.playVideo();
                         // Seek immediately for skip intro
                         if (this.dom.skipIntro.checked) {
-                            this.freezePlayer.seekTo(AUDIO.SKIP_SECONDS, true);
+                            this.posePlayer.seekTo(AUDIO.SKIP_SECONDS, true);
                         }
                     }
                 });
             }
         } else {
             if (this.dom.shuffle.checked) {
-                if (this.chaseTracks.length) this.shuffleList('chase');
-                if (this.freezeTracks.length) this.shuffleList('freeze');
+                if (this.playTracks.length) this.shuffleList('play');
+                if (this.poseTracks.length) this.shuffleList('pose');
             }
-            this.chaseIdx = this.freezeIdx = 0;
-            if (this.chaseTracks.length) this.loadTrack('chase');
-            if (this.freezeTracks.length) this.loadTrack('freeze');
+            this.playIdx = this.poseIdx = 0;
+            if (this.playTracks.length) this.loadTrack('play');
+            if (this.poseTracks.length) this.loadTrack('pose');
         }
 
         this.dom.startBtn.textContent = 'Stop';
@@ -2055,7 +2055,7 @@ const Game = {
         window.scrollTo({ top: 0, behavior: 'instant' });
         this.dom.settings.classList.add('scroll-hidden');
 
-        this.setState('CHASE');
+        this.setState('PLAY');
     },
 
     stop() {
@@ -2089,10 +2089,10 @@ const Game = {
         this._shuffleHistory = null;
         this._localShuffleHistory = null;
         // Clear YouTube error retry counter
-        this._ytErrorCount = { chase: 0, freeze: 0 };
+        this._ytErrorCount = { play: 0, pose: 0 };
 
         // Revoke blob URLs to prevent memory leaks
-        ['chase', 'freeze'].forEach(type => {
+        ['play', 'pose'].forEach(type => {
             const audio = this.getAudio(type);
             if (audio.src && audio.src.startsWith('blob:')) {
                 URL.revokeObjectURL(audio.src);
@@ -2101,12 +2101,12 @@ const Game = {
 
         // Reset volumes and stop audio
         const vol = +this.dom.volSlider.value / 100;
-        this.dom.chaseAudio.volume = vol;
-        this.dom.freezeAudio.volume = vol;
-        this.dom.chaseAudio.pause();
-        this.dom.freezeAudio.pause();
-        this.pauseYT('chase');
-        this.pauseYT('freeze');
+        this.dom.playAudio.volume = vol;
+        this.dom.poseAudio.volume = vol;
+        this.dom.playAudio.pause();
+        this.dom.poseAudio.pause();
+        this.pauseYT('play');
+        this.pauseYT('pose');
         this.dom.ytBackground.classList.remove('visible');
         this.dom.videoOverlay.classList.remove('visible');
 
@@ -2134,11 +2134,11 @@ const Game = {
         this.dom.localTab.disabled = disabled;
         this.dom.ytTab.disabled = disabled;
         // File inputs
-        this.dom.chaseFiles.disabled = disabled;
-        this.dom.freezeFiles.disabled = disabled;
+        this.dom.playFiles.disabled = disabled;
+        this.dom.poseFiles.disabled = disabled;
         // YouTube inputs
-        this.dom.chaseURL.disabled = disabled;
-        this.dom.freezeURL.disabled = disabled;
+        this.dom.playURL.disabled = disabled;
+        this.dom.poseURL.disabled = disabled;
         this.dom.sampleBtn.disabled = disabled;
         // Browse inputs
         this.dom.playlistSearch.disabled = disabled;
@@ -2180,19 +2180,19 @@ const Game = {
         this._inTransition = true;
         setTimeout(() => { this._inTransition = false; }, TIMEOUTS.PHASE_TRANSITION_LOCK);
 
-        const isChase = newState === 'CHASE';
+        const isPlay = newState === 'PLAY';
 
         if (changed) {
-            this.dom.command.textContent = isChase ? 'PLAY!' : 'POSE!';
-            this.dom.message.textContent = isChase ? 'Go go go!' : 'Hold still!';
-            document.body.style.background = isChase ? 'var(--chase)' : 'var(--freeze)';
-            this.speak(isChase ? 'Play!' : 'Pose!');
+            this.dom.command.textContent = isPlay ? 'PLAY!' : 'POSE!';
+            this.dom.message.textContent = isPlay ? 'Go go go!' : 'Hold still!';
+            document.body.style.background = isPlay ? 'var(--play)' : 'var(--pose)';
+            this.speak(isPlay ? 'Play!' : 'Pose!');
 
             if (this.source === 'youtube') {
-                this.crossfadeYT(isChase ? 'chase' : 'freeze', isChase ? 'freeze' : 'chase');
+                this.crossfadeYT(isPlay ? 'play' : 'pose', isPlay ? 'pose' : 'play');
             } else {
-                const newType = isChase ? 'chase' : 'freeze';
-                const oldType = isChase ? 'freeze' : 'chase';
+                const newType = isPlay ? 'play' : 'pose';
+                const oldType = isPlay ? 'pose' : 'play';
 
                 // Pick new random track on phase change when shuffle enabled
                 if (this.dom.shuffle.checked && this.getTracks(newType)?.length > 1) {
@@ -2205,7 +2205,7 @@ const Game = {
             }
         }
 
-        this.scheduleNext(isChase);
+        this.scheduleNext(isPlay);
     },
 
     // Smooth crossfade for YouTube - both players stay playing (one muted) for instant switching
@@ -2383,7 +2383,7 @@ const Game = {
         }
     },
 
-    scheduleNext(isChase) {
+    scheduleNext(isPlay) {
         const length = this.LENGTH_PRESETS[this.dom.lengthSlider.value];
         const repeat = this.REPEAT_CHANCE[this.dom.repeatSlider.value];
         const timing = this.TIMING_VARIANCE[this.dom.timingSlider.value];
@@ -2403,8 +2403,8 @@ const Game = {
 
         this.timer = setTimeout(() => {
             // Use repeat chance to determine if phase changes or repeats
-            const nextPhase = isChase ? 'FREEZE' : 'CHASE';
-            const currentPhase = isChase ? 'CHASE' : 'FREEZE';
+            const nextPhase = isPlay ? 'POSE' : 'PLAY';
+            const currentPhase = isPlay ? 'PLAY' : 'POSE';
             const willRepeat = Math.random() < repeat.chance;
             this.setState(willRepeat ? currentPhase : nextPhase);
         }, duration * 1000);
