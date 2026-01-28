@@ -6,13 +6,6 @@
 [build.environment]
   NODE_VERSION = "18"
 
-[functions]
-  included_files = ["netlify/functions/**/*"]
-
-[functions."playlists"]
-  runtime = "python3.11"
-  included_files = ["**/*"]
-
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

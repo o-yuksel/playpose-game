@@ -1,0 +1,7 @@
+{
+  "name": "playlists-function",
+  "version": "1.0.0",
+  "dependencies": {
+    "ytmusic-api": "^5.2.0"
+  }
+}
