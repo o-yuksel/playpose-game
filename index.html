@@ -987,7 +987,7 @@ function debounce(fn, delay) {
 }
 
 const AUDIO = {
-    SKIP_SECONDS: 30
+    SKIP_SECONDS: 40
 };
 
 const YT_ERRORS = {
@@ -1839,6 +1839,11 @@ const Game = {
             // Update history and play
             this._shuffleHistory[playerType] = [...history, newIndex].slice(-maxHistory);
             player.playVideoAt(newIndex);
+
+            // Seek to skip position immediately (YouTube will buffer from that point)
+            if (this.dom.skipIntro.checked) {
+                player.seekTo(AUDIO.SKIP_SECONDS, true);
+            }
             return true;
         }
         return false;
@@ -1850,9 +1855,13 @@ const Game = {
 
         this.safeExec(() => {
             player.unMute();
-            if (!this.shuffleToRandom(player, type)) player.playVideo();
-            if (this.dom.skipIntro.checked) {
-                setTimeout(() => this.seekTo(player, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
+            // shuffleToRandom handles skip internally if shuffle is ON
+            if (!this.shuffleToRandom(player, type)) {
+                player.playVideo();
+                // Seek immediately for skip intro when shuffle is OFF
+                if (this.dom.skipIntro.checked) {
+                    player.seekTo(AUDIO.SKIP_SECONDS, true);
+                }
             }
         });
     },
@@ -1998,17 +2007,14 @@ const Game = {
                 this.safeExec(() => {
                     this.chasePlayer.setVolume(targetVol);
                     if (this.dom.shuffle.checked) {
+                        // shuffleToRandom handles skip internally
                         this.shuffleToRandom(this.chasePlayer, 'chase');
                     } else {
                         this.chasePlayer.playVideo();
-                    }
-                    if (this.dom.skipIntro.checked) {
-                        setTimeout(() => {
-                            const duration = this.safeExec(() => this.chasePlayer.getDuration()) || 0;
-                            if (duration > AUDIO.SKIP_SECONDS) {
-                                this.safeExec(() => this.chasePlayer.seekTo(AUDIO.SKIP_SECONDS, true));
-                            }
-                        }, 300);
+                        // Seek immediately for skip intro
+                        if (this.dom.skipIntro.checked) {
+                            this.chasePlayer.seekTo(AUDIO.SKIP_SECONDS, true);
+                        }
                     }
                 });
             }
@@ -2018,17 +2024,14 @@ const Game = {
                 this.safeExec(() => {
                     this.freezePlayer.setVolume(0);
                     if (this.dom.shuffle.checked) {
+                        // shuffleToRandom handles skip internally
                         this.shuffleToRandom(this.freezePlayer, 'freeze');
                     } else {
                         this.freezePlayer.playVideo();
-                    }
-                    if (this.dom.skipIntro.checked) {
-                        setTimeout(() => {
-                            const duration = this.safeExec(() => this.freezePlayer.getDuration()) || 0;
-                            if (duration > AUDIO.SKIP_SECONDS) {
-                                this.safeExec(() => this.freezePlayer.seekTo(AUDIO.SKIP_SECONDS, true));
-                            }
-                        }, 500);
+                        // Seek immediately for skip intro
+                        if (this.dom.skipIntro.checked) {
+                            this.freezePlayer.seekTo(AUDIO.SKIP_SECONDS, true);
+                        }
                     }
                 });
             }
@@ -2266,26 +2269,9 @@ const Game = {
         if (!player || !this.isReady(type) || this.state === 'IDLE') return;
 
         // If shuffle is ON, pick and load next random video now so it buffers
+        // shuffleToRandom now handles skip intro internally
         if (this.dom.shuffle.checked) {
-            const shuffled = this.shuffleToRandom(player, type);
-            if (shuffled && this.dom.skipIntro.checked) {
-                // Wait for video to load, then seek to 30s
-                let attempts = 0;
-                this._ytPollInterval = setInterval(() => {
-                    attempts++;
-                    const duration = this.safeExec(() => player.getDuration()) || 0;
-                    const state = this.safeExec(() => player.getPlayerState());
-
-                    if ((state === 1 || state === 3) && duration > AUDIO.SKIP_SECONDS) {
-                        clearInterval(this._ytPollInterval);
-                        this._ytPollInterval = null;
-                        this.safeExec(() => player.seekTo(AUDIO.SKIP_SECONDS, true));
-                    } else if (attempts >= YT_POLLING.MAX_ATTEMPTS) {
-                        clearInterval(this._ytPollInterval);
-                        this._ytPollInterval = null;
-                    }
-                }, YT_POLLING.INTERVAL);
-            }
+            this.shuffleToRandom(player, type);
         }
         // If shuffle OFF, just ensure it's still playing (muted) - will resume from current position
         this.safeExec(() => {
