@@ -974,7 +974,9 @@ const TIMEOUTS = {
 const CROSSFADE = {
     DURATION: 400,      // Total crossfade time in ms (reduced for more distinct transitions)
     STEPS: 10,          // Number of volume steps
-    get INTERVAL() { return this.DURATION / this.STEPS; }
+    get INTERVAL() { return this.DURATION / this.STEPS; },
+    fadeOutCurve: (progress) => Math.pow(1 - progress, 2),  // Fast drop, then taper
+    fadeInCurve: (progress) => 1 - Math.pow(1 - progress, 2) // Slow start, accelerates
 };
 
 // Debounce utility
@@ -992,6 +994,7 @@ const AUDIO = {
 
 const YT_ERRORS = {
     2: 'Invalid video',
+    5: 'HTML5 error',
     100: 'Not found',
     101: 'Blocked',
     150: 'Blocked'
@@ -1840,9 +1843,9 @@ const Game = {
             this._shuffleHistory[playerType] = [...history, newIndex].slice(-maxHistory);
             player.playVideoAt(newIndex);
 
-            // Seek to skip position immediately (YouTube will buffer from that point)
+            // Seek to skip position after delay (video needs time to start loading)
             if (this.dom.skipIntro.checked) {
-                player.seekTo(AUDIO.SKIP_SECONDS, true);
+                setTimeout(() => this.seekTo(player, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
             }
             return true;
         }
@@ -1858,9 +1861,9 @@ const Game = {
             // shuffleToRandom handles skip internally if shuffle is ON
             if (!this.shuffleToRandom(player, type)) {
                 player.playVideo();
-                // Seek immediately for skip intro when shuffle is OFF
+                // Seek after delay for skip intro when shuffle is OFF
                 if (this.dom.skipIntro.checked) {
-                    player.seekTo(AUDIO.SKIP_SECONDS, true);
+                    setTimeout(() => this.seekTo(player, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
                 }
             }
         });
@@ -2007,13 +2010,13 @@ const Game = {
                 this.safeExec(() => {
                     this.playPlayer.setVolume(targetVol);
                     if (this.dom.shuffle.checked) {
-                        // shuffleToRandom handles skip internally
+                        // shuffleToRandom handles skip internally with delay
                         this.shuffleToRandom(this.playPlayer, 'play');
                     } else {
                         this.playPlayer.playVideo();
-                        // Seek immediately for skip intro
+                        // Seek after delay for skip intro (video needs time to load)
                         if (this.dom.skipIntro.checked) {
-                            this.playPlayer.seekTo(AUDIO.SKIP_SECONDS, true);
+                            setTimeout(() => this.seekTo(this.playPlayer, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
                         }
                     }
                 });
@@ -2024,13 +2027,13 @@ const Game = {
                 this.safeExec(() => {
                     this.posePlayer.setVolume(0);
                     if (this.dom.shuffle.checked) {
-                        // shuffleToRandom handles skip internally
+                        // shuffleToRandom handles skip internally with delay
                         this.shuffleToRandom(this.posePlayer, 'pose');
                     } else {
                         this.posePlayer.playVideo();
-                        // Seek immediately for skip intro
+                        // Seek after delay for skip intro (video needs time to load)
                         if (this.dom.skipIntro.checked) {
-                            this.posePlayer.seekTo(AUDIO.SKIP_SECONDS, true);
+                            setTimeout(() => this.seekTo(this.posePlayer, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
                         }
                     }
                 });
