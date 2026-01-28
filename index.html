@@ -1699,7 +1699,13 @@ const Game = {
         if (!this.dom.shuffle.checked) return false;
         const playlist = this.safeExec(() => player.getPlaylist());
         if (Array.isArray(playlist) && playlist.length > 1) {
-            player.playVideoAt(Math.floor(Math.random() * playlist.length));
+            const currentIndex = this.safeExec(() => player.getPlaylistIndex()) || 0;
+            // Pick a random index that's different from current
+            let newIndex;
+            do {
+                newIndex = Math.floor(Math.random() * playlist.length);
+            } while (newIndex === currentIndex && playlist.length > 1);
+            player.playVideoAt(newIndex);
             return true;
         }
         return false;
