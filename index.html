@@ -1197,35 +1197,38 @@ const Game = {
     },
 
     setupMobileScroll() {
-        let touchStartY = 0;
-        let triggered = false;
+        let lastY = 0;
 
         document.addEventListener('touchstart', (e) => {
-            touchStartY = e.touches[0].clientY;
-            triggered = false;
+            lastY = e.touches[0].clientY;
         }, { passive: true });
 
         document.addEventListener('touchmove', (e) => {
             if (!document.body.classList.contains('playing')) return;
-            if (triggered) return;
 
-            const touchCurrentY = e.touches[0].clientY;
-            const swipeDistance = touchStartY - touchCurrentY;
+            const currentY = e.touches[0].clientY;
+            const deltaY = lastY - currentY; // positive = finger moving up, negative = finger moving down
+            const isMenuVisible = !this.dom.settings.classList.contains('scroll-hidden');
+            const panelRect = this.dom.settings.getBoundingClientRect();
 
-            // Swipe UP (20px) = show panel
-            if (swipeDistance > 20) {
-                triggered = true;
+            // Finger moving UP (deltaY > 12) = open menu (works anywhere)
+            if (deltaY > 12 && !isMenuVisible) {
                 this.dom.settings.classList.remove('scroll-hidden');
                 this.dom.settings.classList.add('scroll-visible');
-                return;
             }
 
-            // Swipe DOWN (20px) = hide panel
-            if (swipeDistance < -20) {
-                triggered = true;
-                this.dom.settings.classList.add('scroll-hidden');
-                this.dom.settings.classList.remove('scroll-visible');
+            // Finger moving DOWN (deltaY < -12) = close menu
+            // Only if finger is near top of viewport OR near top of the panel
+            if (deltaY < -12 && isMenuVisible) {
+                const nearTopOfScreen = currentY < 120;
+                const nearTopOfPanel = currentY < panelRect.top + 80;
+                if (nearTopOfScreen || nearTopOfPanel) {
+                    this.dom.settings.classList.add('scroll-hidden');
+                    this.dom.settings.classList.remove('scroll-visible');
+                }
             }
+
+            lastY = currentY;
         }, { passive: true });
     },
 
