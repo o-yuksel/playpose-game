@@ -2185,7 +2185,8 @@ const Game = {
             // Reset error count for this player on successful play
             if (this._ytErrorCount) this._ytErrorCount[newType] = 0;
 
-            if (this.dom.skipIntro.checked) {
+            // Only skip intro on NEW tracks (when shuffled), not when resuming same song
+            if (this.dom.skipIntro.checked && shuffled) {
                 let attempts = 0;
                 this._ytPollInterval = setInterval(() => {
                     attempts++;
@@ -2214,7 +2215,8 @@ const Game = {
     // Smooth crossfade with overlapping volume ramp
     crossfadeLocal(newAudio, oldAudio) {
         const targetVol = +this.dom.volSlider.value / 100;
-        const shouldSkip = this.dom.skipIntro.checked;
+        // Only skip intro when shuffle is ON (new track), not when resuming same song
+        const shouldSkip = this.dom.skipIntro.checked && this.dom.shuffle.checked;
 
         // Clear any existing crossfade
         if (this._crossfadeInterval) {
