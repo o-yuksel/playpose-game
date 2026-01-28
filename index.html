@@ -2206,17 +2206,12 @@ const Game = {
             this._ytPrepareTimeout = null;
         }
 
-        // Get current volumes
-        const oldStartVol = oldPlayer && this.isReady(oldType)
-            ? (this.safeExec(() => oldPlayer.getVolume()) ?? targetVol)
-            : targetVol;
-        const newStartVol = this.safeExec(() => newPlayer.getVolume()) ?? 0;
-
         // Ensure new player is playing (should already be from pre-buffering)
         this.safeExec(() => {
             newPlayer.unMute();
+            newPlayer.setVolume(0); // Start at 0, will fade in
             const state = newPlayer.getPlayerState();
-            if (state !== 1 && state !== 3) { // Not playing or buffering
+            if (state !== 1 && state !== 3) {
                 newPlayer.playVideo();
             }
         });
@@ -2224,7 +2219,7 @@ const Game = {
         // Reset error count
         if (this._ytErrorCount) this._ytErrorCount[newType] = 0;
 
-        // Crossfade: just swap volumes, both players keep playing
+        // Crossfade: old fades targetVol->0, new fades 0->targetVol
         let step = 0;
         this._ytCrossfadeInterval = setInterval(() => {
             step++;
@@ -2232,14 +2227,13 @@ const Game = {
             const fadeOutCurve = CROSSFADE.fadeOutCurve(progress);
             const fadeInCurve = CROSSFADE.fadeInCurve(progress);
 
-            // Fade out old player to 0 (but keep playing)
+            // Fade out old player from targetVol to 0
             if (oldPlayer && this.isReady(oldType)) {
-                this.safeExec(() => oldPlayer.setVolume(Math.max(0, Math.round(oldStartVol * fadeOutCurve))));
+                this.safeExec(() => oldPlayer.setVolume(Math.round(targetVol * fadeOutCurve)));
             }
 
-            // Fade in new player
-            const newVol = Math.round(newStartVol + (targetVol - newStartVol) * fadeInCurve);
-            this.safeExec(() => newPlayer.setVolume(newVol));
+            // Fade in new player from 0 to targetVol
+            this.safeExec(() => newPlayer.setVolume(Math.round(targetVol * fadeInCurve)));
 
             // Complete crossfade
             if (step >= CROSSFADE.STEPS) {
