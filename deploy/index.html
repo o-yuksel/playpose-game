@@ -35,30 +35,6 @@
         }
         .container { width: 90%; max-width: 420px; padding: 20px; }
 
-        .logo-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 20px;
-            margin-bottom: 15px;
-            height: 80px;
-        }
-        .game-logo {
-            height: 70px;
-            width: auto;
-            opacity: 0.4;
-            transition: all 0.4s ease;
-            filter: drop-shadow(0 4px 15px rgba(0,0,0,0.3));
-        }
-        .game-logo.active {
-            opacity: 1;
-            transform: scale(1.15);
-            filter: drop-shadow(0 6px 25px rgba(0,0,0,0.5));
-        }
-        /* Hide logos in idle state, show during game */
-        body:not(.playing) .logo-container { display: none; }
-        body.playing .logo-container { display: flex; }
-
         #command {
             font-size: clamp(44px, 13vmin, 88px);
             font-weight: 800;
@@ -160,6 +136,15 @@
             box-shadow: none;
             opacity: 0.25;
             pointer-events: auto;
+            transition: transform 0.3s ease, opacity 0.3s ease, background 0.4s ease;
+        }
+        /* Mobile: scroll down to show, scroll up to hide */
+        @media (hover: none) and (pointer: coarse) {
+            body.playing .panel.scroll-hidden {
+                transform: translateY(100%);
+                opacity: 0;
+                pointer-events: none;
+            }
         }
         /* Desktop: hover to reveal */
         @media (hover: hover) {
@@ -496,15 +481,12 @@
             padding: 12px;
             background: rgba(0, 0, 0, 0.2);
             border-radius: 10px;
-            overflow: hidden;
         }
         .selected-slot {
             padding: 10px;
             background: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
             text-align: center;
-            min-width: 0;
-            overflow: hidden;
         }
         .selected-slot-label {
             font-size: clamp(10px, 2.5vmin, 12px);
@@ -819,13 +801,9 @@
 <audio id="freezeAudio" playsinline></audio>
 
 <div class="container">
-    <div class="logo-container" id="logoContainer">
-        <img src="play.png" alt="Play" class="game-logo" id="playLogo">
-        <img src="pose.png" alt="Pose" class="game-logo" id="poseLogo">
-    </div>
     <div id="command">Play · Pose</div>
     <div id="timer"></div>
-    <div id="message">Select Play & Pose music below, then Start!</div>
+    <div id="message">Set up your music and press Start</div>
 
     <button id="startButton" class="btn">Start Game</button>
 
@@ -834,14 +812,47 @@
     </div>
 
     <div class="panel" id="settings">
-        <!-- Music Source (First!) -->
+        <!-- Simple Timing Controls -->
+        <div class="slider-group">
+            <div class="slider-header">
+                <span class="slider-label">Phase Length</span>
+                <span class="slider-value" id="lengthValue">Medium</span>
+            </div>
+            <input type="range" id="lengthSlider" min="1" max="5" value="3">
+            <div class="slider-ticks"><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="slider-desc" id="lengthDesc">~20 seconds per phase</div>
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-header">
+                <span class="slider-label">Repeat Chance</span>
+                <span class="slider-value" id="repeatValue">Never</span>
+            </div>
+            <input type="range" id="repeatSlider" min="1" max="4" value="1">
+            <div class="slider-ticks"><span></span><span></span><span></span><span></span></div>
+            <div class="slider-desc" id="repeatDesc">Always alternates Play/Pose</div>
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-header">
+                <span class="slider-label">Timing</span>
+                <span class="slider-value" id="timingValue">Steady</span>
+            </div>
+            <input type="range" id="timingSlider" min="1" max="4" value="1">
+            <div class="slider-ticks"><span></span><span></span><span></span><span></span></div>
+            <div class="slider-desc" id="timingDesc">Consistent phase durations</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Music Source -->
         <div class="tabs">
-            <button class="tab active" id="browseTab">Browse</button>
-            <button class="tab" id="localTab">Local</button>
+            <button class="tab" id="browseTab">Browse</button>
+            <button class="tab active" id="localTab">Local</button>
             <button class="tab" id="ytTab">URL</button>
         </div>
 
-        <div class="music-panel active" id="browsePanel">
+        <div class="music-panel" id="browsePanel">
             <div class="mood-grid" id="moodGrid">
                 <button class="mood-btn" data-mood="party">Party</button>
                 <button class="mood-btn" data-mood="workout">Workout</button>
@@ -874,7 +885,7 @@
             </div>
         </div>
 
-        <div class="music-panel" id="localPanel">
+        <div class="music-panel active" id="localPanel">
             <div class="file-input-wrapper">
                 <label>Play Music</label>
                 <input type="file" id="chaseFiles" accept="audio/*" multiple>
@@ -896,39 +907,6 @@
 
         <div class="divider"></div>
 
-        <!-- Timing Controls -->
-        <div class="slider-group">
-            <div class="slider-header">
-                <span class="slider-label">Phase Length</span>
-                <span class="slider-value" id="lengthValue">Short</span>
-            </div>
-            <input type="range" id="lengthSlider" min="1" max="5" value="2">
-            <div class="slider-ticks"><span></span><span></span><span></span><span></span><span></span></div>
-            <div class="slider-desc" id="lengthDesc">~10 seconds per phase</div>
-        </div>
-
-        <div class="slider-group">
-            <div class="slider-header">
-                <span class="slider-label">Repeat Chance</span>
-                <span class="slider-value" id="repeatValue">Never</span>
-            </div>
-            <input type="range" id="repeatSlider" min="1" max="4" value="1">
-            <div class="slider-ticks"><span></span><span></span><span></span><span></span></div>
-            <div class="slider-desc" id="repeatDesc">Always alternates Play/Pose</div>
-        </div>
-
-        <div class="slider-group">
-            <div class="slider-header">
-                <span class="slider-label">Timing</span>
-                <span class="slider-value" id="timingValue">Steady</span>
-            </div>
-            <input type="range" id="timingSlider" min="1" max="4" value="1">
-            <div class="slider-ticks"><span></span><span></span><span></span><span></span></div>
-            <div class="slider-desc" id="timingDesc">Consistent phase durations</div>
-        </div>
-
-        <div class="divider"></div>
-
         <!-- Toggles -->
         <div class="toggles">
             <div class="toggle">
@@ -945,7 +923,7 @@
             </div>
             <div class="toggle">
                 <span>Mute Voice</span>
-                <input type="checkbox" id="muteVoice" checked>
+                <input type="checkbox" id="muteVoice">
             </div>
         </div>
 
@@ -969,13 +947,13 @@ const TIMEOUTS = {
     YT_INIT: 8000,
     TOAST: 3000,
     SAVE_DEBOUNCE: 300,
-    PHASE_TRANSITION_LOCK: 200,
+    PHASE_TRANSITION_LOCK: 500,  // Increased to cover crossfade duration
     YT_SEEK_DELAY: 300  // Wait for YouTube to start buffering before seeking
 };
 
 const CROSSFADE = {
-    DURATION: 800,      // Total crossfade time in ms
-    STEPS: 20,          // Number of volume steps
+    DURATION: 400,      // Total crossfade time in ms (reduced for more distinct transitions)
+    STEPS: 10,          // Number of volume steps
     get INTERVAL() { return this.DURATION / this.STEPS; }
 };
 
@@ -1017,7 +995,7 @@ const Game = {
     countdown: null,
     remaining: 0,
     wakeLock: null,
-    source: 'youtube',
+    source: 'local',
 
     // Playlists
     chaseTracks: [], freezeTracks: [],
@@ -1093,8 +1071,7 @@ const Game = {
             'chaseFiles', 'freezeFiles', 'chaseName', 'freezeName',
             'chaseURL', 'freezeURL', 'sampleBtn',
             'showTimer', 'skipIntro', 'shuffle', 'muteVoice',
-            'chaseAudio', 'freezeAudio', 'ytBackground', 'videoOverlay', 'chaseWrapper', 'freezeWrapper',
-            'playLogo', 'poseLogo'
+            'chaseAudio', 'freezeAudio', 'ytBackground', 'videoOverlay', 'chaseWrapper', 'freezeWrapper'
         ];
         this.dom = ids.reduce((acc, id) => {
             const key = id === 'startButton' ? 'startBtn' : id;
@@ -1200,6 +1177,38 @@ const Game = {
             if (e.target.closest('input, button, select, label')) return;
             this.dom.settings.classList.toggle('panel-expanded');
         });
+
+        // Mobile: scroll down to show panel, scroll up to hide
+        this.setupMobileScroll();
+    },
+
+    setupMobileScroll() {
+        // Only for touch devices
+        if (!('ontouchstart' in window)) return;
+
+        let touchStartY = 0;
+
+        document.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        document.addEventListener('touchend', (e) => {
+            if (!document.body.classList.contains('playing')) return;
+
+            const touchEndY = e.changedTouches[0].clientY;
+            const swipeDistance = touchStartY - touchEndY;
+
+            // Need at least 30px swipe to trigger
+            if (Math.abs(swipeDistance) < 30) return;
+
+            // Swipe UP (finger moves up, positive value) = show panel
+            // Swipe DOWN (finger moves down, negative value) = hide panel
+            if (swipeDistance > 30) {
+                this.dom.settings.classList.remove('scroll-hidden');
+            } else if (swipeDistance < -30) {
+                this.dom.settings.classList.add('scroll-hidden');
+            }
+        }, { passive: true });
     },
 
     setSource(src) {
@@ -1474,15 +1483,53 @@ const Game = {
         if (!tracks || tracks.length === 0) {
             return;
         }
-        const newIdx = (this.getIdx(type) + 1) % tracks.length;
-        this.setIdx(type, newIdx);
 
-        if (newIdx === 0 && this.dom.shuffle.checked) this.shuffleList(type);
+        let newIdx;
+        if (this.dom.shuffle.checked && tracks.length > 1) {
+            // Random selection with history tracking (like YouTube shuffle)
+            newIdx = this.getRandomTrackIndex(type, tracks.length);
+        } else {
+            // Sequential playback
+            newIdx = (this.getIdx(type) + 1) % tracks.length;
+        }
+        this.setIdx(type, newIdx);
         this.loadTrack(type);
 
         const isActive = (type === 'chase' && this.state === 'CHASE') ||
                          (type === 'freeze' && this.state === 'FREEZE');
         if (isActive) this.playAudio(this.getAudio(type));
+    },
+
+    // Get random track index avoiding recent history (for local audio shuffle)
+    getRandomTrackIndex(type, playlistLength) {
+        if (!this._localShuffleHistory) this._localShuffleHistory = { chase: [], freeze: [] };
+        const history = this._localShuffleHistory[type] || [];
+        const currentIdx = this.getIdx(type);
+
+        // Keep history to half the playlist size (max 5)
+        const maxHistory = Math.min(5, Math.floor(playlistLength / 2));
+        const recentIndices = new Set([...history.slice(-maxHistory), currentIdx]);
+
+        // Build pool of available indices
+        const available = [];
+        for (let i = 0; i < playlistLength; i++) {
+            if (!recentIndices.has(i)) available.push(i);
+        }
+
+        // Pick random from available, or any random if all exhausted
+        let newIdx;
+        if (available.length > 0) {
+            newIdx = available[Math.floor(Math.random() * available.length)];
+        } else {
+            // All indices in history, pick any different from current
+            do {
+                newIdx = Math.floor(Math.random() * playlistLength);
+            } while (newIdx === currentIdx && playlistLength > 1);
+        }
+
+        // Update history
+        this._localShuffleHistory[type] = [...history, newIdx].slice(-maxHistory);
+        return newIdx;
     },
 
     playAudio(player) {
@@ -1629,12 +1676,18 @@ const Game = {
                 },
                 onError: e => {
                     this.showToast(`${type}: ${YT_ERRORS[e.data] || 'Error'} - skipping`);
-                    // Auto-skip to next video on error
-                    setTimeout(() => {
-                        if (this.state !== 'IDLE') {
-                            this.skipYT(type);
-                        }
-                    }, 500);
+                    // Auto-skip to next video on error (with max retry limit to prevent infinite loops)
+                    if (!this._ytErrorCount) this._ytErrorCount = { chase: 0, freeze: 0 };
+                    this._ytErrorCount[type]++;
+                    if (this._ytErrorCount[type] <= 5) {
+                        setTimeout(() => {
+                            if (this.state !== 'IDLE') {
+                                this.skipYT(type);
+                            }
+                        }, 500);
+                    } else {
+                        this.showToast(`${type}: Too many errors - stopping`);
+                    }
                 }
             }
         };
@@ -1701,25 +1754,33 @@ const Game = {
         if (Array.isArray(playlist) && playlist.length > 1) {
             // Initialize history tracking
             if (!this._shuffleHistory) this._shuffleHistory = { chase: [], freeze: [] };
-            const playerType = type || (player === this.chasePlayer ? 'chase' : 'freeze');
+            const playerType = type || 'chase';
             const history = this._shuffleHistory[playerType] || [];
+            const currentIndex = this.safeExec(() => player.getPlaylistIndex()) ?? -1;
 
-            // Get available indices (exclude recently played)
+            // Keep history to half playlist size (max 5)
             const maxHistory = Math.min(5, Math.floor(playlist.length / 2));
-            const recentIndices = history.slice(-maxHistory);
+            const recentIndices = new Set([...history.slice(-maxHistory), currentIndex]);
+
+            // Build pool of available indices
             const available = [];
             for (let i = 0; i < playlist.length; i++) {
-                if (!recentIndices.includes(i)) available.push(i);
+                if (!recentIndices.has(i)) available.push(i);
             }
 
-            // Pick random from available, or any if all exhausted
-            const pool = available.length > 0 ? available :
-                         Array.from({ length: playlist.length }, (_, i) => i);
-            const newIndex = pool[Math.floor(Math.random() * pool.length)];
+            // Pick random from available pool
+            let newIndex;
+            if (available.length > 0) {
+                newIndex = available[Math.floor(Math.random() * available.length)];
+            } else {
+                // All in history, pick any different from current
+                do {
+                    newIndex = Math.floor(Math.random() * playlist.length);
+                } while (newIndex === currentIndex && playlist.length > 1);
+            }
 
-            // Update history
+            // Update history and play
             this._shuffleHistory[playerType] = [...history, newIndex].slice(-maxHistory);
-
             player.playVideoAt(newIndex);
             return true;
         }
@@ -1742,37 +1803,6 @@ const Game = {
     pauseYT(type) {
         const player = this.getPlayer(type);
         if (player) this.safeExec(() => player.pauseVideo());
-    },
-
-    // Pre-buffer both players for seamless transitions
-    preBufferBothPlayers() {
-        const chasePlayer = this.getPlayer('chase');
-        const freezePlayer = this.getPlayer('freeze');
-        const skipIntro = this.dom.skipIntro.checked;
-
-        // Start chase player (will be active first)
-        if (chasePlayer && this.isReady('chase')) {
-            this.safeExec(() => {
-                chasePlayer.unMute();
-                chasePlayer.setVolume(+this.dom.volSlider.value);
-                if (!this.shuffleToRandom(chasePlayer, 'chase')) chasePlayer.playVideo();
-                if (skipIntro) {
-                    setTimeout(() => this.seekTo(chasePlayer, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
-                }
-            });
-        }
-
-        // Start freeze player muted (pre-buffered for instant switching)
-        if (freezePlayer && this.isReady('freeze')) {
-            this.safeExec(() => {
-                freezePlayer.mute();
-                freezePlayer.setVolume(0);
-                if (!this.shuffleToRandom(freezePlayer, 'freeze')) freezePlayer.playVideo();
-                if (skipIntro) {
-                    setTimeout(() => this.seekTo(freezePlayer, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
-                }
-            });
-        }
     },
 
     seekTo(player, seconds) {
@@ -1902,9 +1932,6 @@ const Game = {
                 this.stop();
                 return;
             }
-
-            // Pre-start both players for seamless switching (freeze starts muted)
-            this.preBufferBothPlayers();
         } else {
             if (this.dom.shuffle.checked) {
                 if (this.chaseTracks.length) this.shuffleList('chase');
@@ -1921,6 +1948,10 @@ const Game = {
         this.disableMusicInputs(true);
         this.dom.skipControls.classList.add('visible');
         document.body.classList.add('playing');
+        // Mobile: start with panel hidden, swipe up to reveal
+        if ('ontouchstart' in window) {
+            this.dom.settings.classList.add('scroll-hidden');
+        }
 
         this.setState('CHASE');
     },
@@ -1930,7 +1961,7 @@ const Game = {
         this.releaseWake();
         this._inTransition = false;
 
-        // Clear any active intervals
+        // Clear any active intervals and timers
         if (this._crossfadeInterval) {
             clearInterval(this._crossfadeInterval);
             this._crossfadeInterval = null;
@@ -1943,6 +1974,11 @@ const Game = {
             clearInterval(this._ytPollInterval);
             this._ytPollInterval = null;
         }
+        // Clear shuffle history to prevent memory leak
+        this._shuffleHistory = null;
+        this._localShuffleHistory = null;
+        // Clear YouTube error retry counter
+        this._ytErrorCount = { chase: 0, freeze: 0 };
 
         // Revoke blob URLs to prevent memory leaks
         ['chase', 'freeze'].forEach(type => {
@@ -1966,7 +2002,7 @@ const Game = {
         this.state = 'IDLE';
         this.dom.command.textContent = 'Play · Pose';
         this.dom.timer.textContent = '';
-        this.dom.message.textContent = 'Select Play & Pose music below, then Start!';
+        this.dom.message.textContent = 'Set up your music and press Start';
         document.body.style.background = 'var(--idle)';
         this.dom.startBtn.textContent = 'Start Game';
         // Re-enable music source inputs
@@ -1974,10 +2010,7 @@ const Game = {
         this.dom.skipControls.classList.remove('visible');
         document.body.classList.remove('playing');
         this.dom.settings.classList.remove('panel-expanded');
-
-        // Reset logo states
-        this.dom.playLogo.classList.remove('active');
-        this.dom.poseLogo.classList.remove('active');
+        this.dom.settings.classList.remove('scroll-hidden');
     },
 
     // Disable only music source inputs, keep sliders/toggles enabled during gameplay
@@ -2002,9 +2035,28 @@ const Game = {
     },
 
     setState(newState) {
+        // Prevent setState during active transition (debounce rapid calls)
+        if (this._inTransition && this.state !== 'IDLE') {
+            return;
+        }
+
         const changed = this.state !== newState;
         this.state = newState;
         this.clearTimers();
+
+        // Clear any in-progress crossfades before starting new one
+        if (this._crossfadeInterval) {
+            clearInterval(this._crossfadeInterval);
+            this._crossfadeInterval = null;
+        }
+        if (this._ytCrossfadeInterval) {
+            clearInterval(this._ytCrossfadeInterval);
+            this._ytCrossfadeInterval = null;
+        }
+        if (this._ytPollInterval) {
+            clearInterval(this._ytPollInterval);
+            this._ytPollInterval = null;
+        }
 
         // Lock during transition to prevent race conditions
         this._inTransition = true;
@@ -2018,17 +2070,20 @@ const Game = {
             document.body.style.background = isChase ? 'var(--chase)' : 'var(--freeze)';
             this.speak(isChase ? 'Play!' : 'Pose!');
 
-            // Toggle logo highlights
-            this.dom.playLogo.classList.toggle('active', isChase);
-            this.dom.poseLogo.classList.toggle('active', !isChase);
-
             if (this.source === 'youtube') {
                 this.crossfadeYT(isChase ? 'chase' : 'freeze', isChase ? 'freeze' : 'chase');
             } else {
-                this.crossfadeLocal(
-                    this.getAudio(isChase ? 'chase' : 'freeze'),
-                    this.getAudio(isChase ? 'freeze' : 'chase')
-                );
+                const newType = isChase ? 'chase' : 'freeze';
+                const oldType = isChase ? 'freeze' : 'chase';
+
+                // Pick new random track on phase change when shuffle enabled
+                if (this.dom.shuffle.checked && this.getTracks(newType)?.length > 1) {
+                    const newIdx = this.getRandomTrackIndex(newType, this.getTracks(newType).length);
+                    this.setIdx(newType, newIdx);
+                    this.loadTrack(newType);
+                }
+
+                this.crossfadeLocal(this.getAudio(newType), this.getAudio(oldType));
             }
         }
 
@@ -2071,25 +2126,28 @@ const Game = {
                 step++;
                 const progress = step / CROSSFADE.STEPS;
 
+                // Exponential curves for more distinct transitions
+                const fadeOutCurve = Math.pow(1 - progress, 2); // Fast drop, then taper
+                const fadeInCurve = 1 - Math.pow(1 - progress, 2); // Slow start, accelerates
+
                 // Fade out old player
                 if (oldPlayer && this.isReady(oldType)) {
-                    const oldVol = Math.round(oldStartVol * (1 - progress));
+                    const oldVol = Math.round(oldStartVol * fadeOutCurve);
                     this.safeExec(() => oldPlayer.setVolume(Math.max(0, oldVol)));
                 }
 
                 // Fade in new player
-                const newVol = Math.round(targetVol * progress);
+                const newVol = Math.round(targetVol * fadeInCurve);
                 this.safeExec(() => newPlayer.setVolume(newVol));
 
                 // Complete crossfade
                 if (step >= CROSSFADE.STEPS) {
                     clearInterval(this._ytCrossfadeInterval);
                     this._ytCrossfadeInterval = null;
-                    // Keep old player running but muted for instant switching (no rebuffer)
                     if (oldPlayer) {
                         this.safeExec(() => {
-                            oldPlayer.setVolume(0);
-                            oldPlayer.mute();
+                            oldPlayer.pauseVideo();
+                            oldPlayer.setVolume(targetVol);
                         });
                     }
                     this.safeExec(() => newPlayer.setVolume(targetVol));
@@ -2099,30 +2157,20 @@ const Game = {
 
         this.safeExec(() => {
             newPlayer.unMute();
-            newPlayer.setVolume(0);
+            // Start at low volume (15%) instead of 0 so users hear song starting while voice speaks
+            const preloadVol = Math.round(targetVol * 0.15);
+            newPlayer.setVolume(preloadVol);
 
-            // Check if pre-buffered by scheduleNext
-            const wasPrebuffered = this._prebuffered === newType;
-            const playerState = this.safeExec(() => newPlayer.getPlayerState());
-            const isAlreadyPlaying = playerState === 1 || playerState === 3; // PLAYING or BUFFERING
-
-            // Only shuffle/start if NOT pre-buffered
-            if (!wasPrebuffered && !isAlreadyPlaying) {
-                const shuffled = this.shuffleToRandom(newPlayer, newType);
-                if (!shuffled) {
-                    newPlayer.playVideo();
-                }
+            const shuffled = this.shuffleToRandom(newPlayer, newType);
+            if (!shuffled) {
+                newPlayer.playVideo();
             }
+            // Reset error count for this player on successful play
+            if (this._ytErrorCount) this._ytErrorCount[newType] = 0;
 
-            // Clear prebuffer flag
-            this._prebuffered = null;
-
-            // If pre-buffered or already playing, start crossfade immediately
-            if (wasPrebuffered || isAlreadyPlaying) {
-                startCrossfade();
-            } else if (this.dom.skipIntro.checked) {
+            if (this.dom.skipIntro.checked) {
                 let attempts = 0;
-                const maxAttempts = 50;
+                const maxAttempts = 30; // Reduced from 50 for faster response
                 this._ytPollInterval = setInterval(() => {
                     attempts++;
                     const duration = this.safeExec(() => newPlayer.getDuration()) || 0;
@@ -2132,13 +2180,14 @@ const Game = {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
                         this.safeExec(() => newPlayer.seekTo(AUDIO.SKIP_SECONDS, true));
-                        setTimeout(() => startCrossfade(), 150);
+                        // Start crossfade immediately (reduced delay)
+                        setTimeout(() => startCrossfade(), 50);
                     } else if (attempts >= maxAttempts) {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
                         startCrossfade();
                     }
-                }, 100);
+                }, 80); // Faster polling (80ms instead of 100ms)
             } else {
                 startCrossfade();
             }
@@ -2160,8 +2209,9 @@ const Game = {
         const oldStartVol = oldAudio ? Math.max(oldAudio.volume, targetVol * 0.5) : targetVol;
         if (oldAudio) oldAudio.volume = oldStartVol;
 
-        // Start new audio at volume 0
-        newAudio.volume = 0;
+        // Start new audio at low volume (15%) so users hear it starting while voice speaks
+        const preloadVol = targetVol * 0.15;
+        newAudio.volume = preloadVol;
 
         // Track when we're at correct position (for skip functionality)
         let atCorrectPosition = !shouldSkip;
@@ -2208,14 +2258,19 @@ const Game = {
             step++;
             const progress = step / CROSSFADE.STEPS;
 
+            // Exponential curves for more distinct transitions
+            const fadeOutCurve = Math.pow(1 - progress, 2); // Fast drop, then taper
+            const fadeInCurve = 1 - Math.pow(1 - progress, 2); // Slow start, accelerates
+
             // Fade out old audio
             if (oldAudio && !oldAudio.paused) {
-                oldAudio.volume = Math.max(0, oldStartVol * (1 - progress));
+                oldAudio.volume = Math.max(0, oldStartVol * fadeOutCurve);
             }
 
-            // Only fade in new audio when at correct position
+            // Fade in new audio (starts from preload volume, ramps to target)
             if (atCorrectPosition) {
-                newAudio.volume = Math.min(targetVol, targetVol * progress);
+                const fadeInVol = preloadVol + (targetVol - preloadVol) * fadeInCurve;
+                newAudio.volume = Math.min(targetVol, fadeInVol);
             }
 
             // Complete crossfade
@@ -2251,35 +2306,6 @@ const Game = {
             }, 1000);
         }
 
-        // Pre-buffer: shuffle and seek inactive player 5 seconds before switch
-        const PREBUFFER_SECONDS = 5;
-        if (this.source === 'youtube' && duration > PREBUFFER_SECONDS + 1) {
-            this._prebufferTimer = setTimeout(() => {
-                const inactiveType = isChase ? 'freeze' : 'chase';
-                const inactivePlayer = this.getPlayer(inactiveType);
-                if (inactivePlayer && this.isReady(inactiveType)) {
-                    this.safeExec(() => {
-                        // Shuffle to random track if enabled
-                        if (this.dom.shuffle.checked) {
-                            this.shuffleToRandom(inactivePlayer, inactiveType);
-                        }
-                        // Pre-seek to skip position so it's buffered
-                        if (this.dom.skipIntro.checked) {
-                            setTimeout(() => {
-                                const dur = inactivePlayer.getDuration() || 0;
-                                if (dur > AUDIO.SKIP_SECONDS) {
-                                    inactivePlayer.seekTo(AUDIO.SKIP_SECONDS, true);
-                                }
-                                this._prebuffered = inactiveType; // Mark as prebuffered
-                            }, 500); // Wait for track to start loading
-                        } else {
-                            this._prebuffered = inactiveType;
-                        }
-                    });
-                }
-            }, (duration - PREBUFFER_SECONDS) * 1000);
-        }
-
         this.timer = setTimeout(() => {
             // Use repeat chance to determine if phase changes or repeats
             const nextPhase = isChase ? 'FREEZE' : 'CHASE';
@@ -2292,8 +2318,6 @@ const Game = {
     clearTimers() {
         if (this.timer) { clearTimeout(this.timer); this.timer = null; }
         if (this.countdown) { clearInterval(this.countdown); this.countdown = null; }
-        if (this._prebufferTimer) { clearTimeout(this._prebufferTimer); this._prebufferTimer = null; }
-        this._prebuffered = null;
         this.dom.timer.textContent = '';
     },
 

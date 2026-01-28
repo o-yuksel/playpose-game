@@ -136,6 +136,15 @@
             box-shadow: none;
             opacity: 0.25;
             pointer-events: auto;
+            transition: transform 0.3s ease, opacity 0.3s ease, background 0.4s ease;
+        }
+        /* Mobile: scroll down to show, scroll up to hide */
+        @media (hover: none) and (pointer: coarse) {
+            body.playing .panel.scroll-hidden {
+                transform: translateY(100%);
+                opacity: 0;
+                pointer-events: none;
+            }
         }
         /* Desktop: hover to reveal */
         @media (hover: hover) {
@@ -938,13 +947,13 @@ const TIMEOUTS = {
     YT_INIT: 8000,
     TOAST: 3000,
     SAVE_DEBOUNCE: 300,
-    PHASE_TRANSITION_LOCK: 200,
+    PHASE_TRANSITION_LOCK: 500,  // Increased to cover crossfade duration
     YT_SEEK_DELAY: 300  // Wait for YouTube to start buffering before seeking
 };
 
 const CROSSFADE = {
-    DURATION: 800,      // Total crossfade time in ms
-    STEPS: 20,          // Number of volume steps
+    DURATION: 400,      // Total crossfade time in ms (reduced for more distinct transitions)
+    STEPS: 10,          // Number of volume steps
     get INTERVAL() { return this.DURATION / this.STEPS; }
 };
 
@@ -1168,6 +1177,38 @@ const Game = {
             if (e.target.closest('input, button, select, label')) return;
             this.dom.settings.classList.toggle('panel-expanded');
         });
+
+        // Mobile: scroll down to show panel, scroll up to hide
+        this.setupMobileScroll();
+    },
+
+    setupMobileScroll() {
+        // Only for touch devices
+        if (!('ontouchstart' in window)) return;
+
+        let touchStartY = 0;
+
+        document.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+
+        document.addEventListener('touchend', (e) => {
+            if (!document.body.classList.contains('playing')) return;
+
+            const touchEndY = e.changedTouches[0].clientY;
+            const swipeDistance = touchStartY - touchEndY;
+
+            // Need at least 30px swipe to trigger
+            if (Math.abs(swipeDistance) < 30) return;
+
+            // Swipe UP (finger moves up, positive value) = show panel
+            // Swipe DOWN (finger moves down, negative value) = hide panel
+            if (swipeDistance > 30) {
+                this.dom.settings.classList.remove('scroll-hidden');
+            } else if (swipeDistance < -30) {
+                this.dom.settings.classList.add('scroll-hidden');
+            }
+        }, { passive: true });
     },
 
     setSource(src) {
@@ -1442,15 +1483,53 @@ const Game = {
         if (!tracks || tracks.length === 0) {
             return;
         }
-        const newIdx = (this.getIdx(type) + 1) % tracks.length;
-        this.setIdx(type, newIdx);
 
-        if (newIdx === 0 && this.dom.shuffle.checked) this.shuffleList(type);
+        let newIdx;
+        if (this.dom.shuffle.checked && tracks.length > 1) {
+            // Random selection with history tracking (like YouTube shuffle)
+            newIdx = this.getRandomTrackIndex(type, tracks.length);
+        } else {
+            // Sequential playback
+            newIdx = (this.getIdx(type) + 1) % tracks.length;
+        }
+        this.setIdx(type, newIdx);
         this.loadTrack(type);
 
         const isActive = (type === 'chase' && this.state === 'CHASE') ||
                          (type === 'freeze' && this.state === 'FREEZE');
         if (isActive) this.playAudio(this.getAudio(type));
+    },
+
+    // Get random track index avoiding recent history (for local audio shuffle)
+    getRandomTrackIndex(type, playlistLength) {
+        if (!this._localShuffleHistory) this._localShuffleHistory = { chase: [], freeze: [] };
+        const history = this._localShuffleHistory[type] || [];
+        const currentIdx = this.getIdx(type);
+
+        // Keep history to half the playlist size (max 5)
+        const maxHistory = Math.min(5, Math.floor(playlistLength / 2));
+        const recentIndices = new Set([...history.slice(-maxHistory), currentIdx]);
+
+        // Build pool of available indices
+        const available = [];
+        for (let i = 0; i < playlistLength; i++) {
+            if (!recentIndices.has(i)) available.push(i);
+        }
+
+        // Pick random from available, or any random if all exhausted
+        let newIdx;
+        if (available.length > 0) {
+            newIdx = available[Math.floor(Math.random() * available.length)];
+        } else {
+            // All indices in history, pick any different from current
+            do {
+                newIdx = Math.floor(Math.random() * playlistLength);
+            } while (newIdx === currentIdx && playlistLength > 1);
+        }
+
+        // Update history
+        this._localShuffleHistory[type] = [...history, newIdx].slice(-maxHistory);
+        return newIdx;
     },
 
     playAudio(player) {
@@ -1597,12 +1676,18 @@ const Game = {
                 },
                 onError: e => {
                     this.showToast(`${type}: ${YT_ERRORS[e.data] || 'Error'} - skipping`);
-                    // Auto-skip to next video on error
-                    setTimeout(() => {
-                        if (this.state !== 'IDLE') {
-                            this.skipYT(type);
-                        }
-                    }, 500);
+                    // Auto-skip to next video on error (with max retry limit to prevent infinite loops)
+                    if (!this._ytErrorCount) this._ytErrorCount = { chase: 0, freeze: 0 };
+                    this._ytErrorCount[type]++;
+                    if (this._ytErrorCount[type] <= 5) {
+                        setTimeout(() => {
+                            if (this.state !== 'IDLE') {
+                                this.skipYT(type);
+                            }
+                        }, 500);
+                    } else {
+                        this.showToast(`${type}: Too many errors - stopping`);
+                    }
                 }
             }
         };
@@ -1663,11 +1748,40 @@ const Game = {
         });
     },
 
-    shuffleToRandom(player) {
+    shuffleToRandom(player, type) {
         if (!this.dom.shuffle.checked) return false;
         const playlist = this.safeExec(() => player.getPlaylist());
         if (Array.isArray(playlist) && playlist.length > 1) {
-            player.playVideoAt(Math.floor(Math.random() * playlist.length));
+            // Initialize history tracking
+            if (!this._shuffleHistory) this._shuffleHistory = { chase: [], freeze: [] };
+            const playerType = type || 'chase';
+            const history = this._shuffleHistory[playerType] || [];
+            const currentIndex = this.safeExec(() => player.getPlaylistIndex()) ?? -1;
+
+            // Keep history to half playlist size (max 5)
+            const maxHistory = Math.min(5, Math.floor(playlist.length / 2));
+            const recentIndices = new Set([...history.slice(-maxHistory), currentIndex]);
+
+            // Build pool of available indices
+            const available = [];
+            for (let i = 0; i < playlist.length; i++) {
+                if (!recentIndices.has(i)) available.push(i);
+            }
+
+            // Pick random from available pool
+            let newIndex;
+            if (available.length > 0) {
+                newIndex = available[Math.floor(Math.random() * available.length)];
+            } else {
+                // All in history, pick any different from current
+                do {
+                    newIndex = Math.floor(Math.random() * playlist.length);
+                } while (newIndex === currentIndex && playlist.length > 1);
+            }
+
+            // Update history and play
+            this._shuffleHistory[playerType] = [...history, newIndex].slice(-maxHistory);
+            player.playVideoAt(newIndex);
             return true;
         }
         return false;
@@ -1679,7 +1793,7 @@ const Game = {
 
         this.safeExec(() => {
             player.unMute();
-            if (!this.shuffleToRandom(player)) player.playVideo();
+            if (!this.shuffleToRandom(player, type)) player.playVideo();
             if (this.dom.skipIntro.checked) {
                 setTimeout(() => this.seekTo(player, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
             }
@@ -1706,7 +1820,7 @@ const Game = {
             const hasMultipleTracks = Array.isArray(playlist) && playlist.length > 1;
 
             if (hasMultipleTracks) {
-                if (!this.shuffleToRandom(player)) player.nextVideo();
+                if (!this.shuffleToRandom(player, type)) player.nextVideo();
                 if (this.dom.skipIntro.checked) {
                     setTimeout(() => this.seekTo(player, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
                 }
@@ -1834,6 +1948,10 @@ const Game = {
         this.disableMusicInputs(true);
         this.dom.skipControls.classList.add('visible');
         document.body.classList.add('playing');
+        // Mobile: start with panel hidden, swipe up to reveal
+        if ('ontouchstart' in window) {
+            this.dom.settings.classList.add('scroll-hidden');
+        }
 
         this.setState('CHASE');
     },
@@ -1843,7 +1961,7 @@ const Game = {
         this.releaseWake();
         this._inTransition = false;
 
-        // Clear any active intervals
+        // Clear any active intervals and timers
         if (this._crossfadeInterval) {
             clearInterval(this._crossfadeInterval);
             this._crossfadeInterval = null;
@@ -1856,6 +1974,11 @@ const Game = {
             clearInterval(this._ytPollInterval);
             this._ytPollInterval = null;
         }
+        // Clear shuffle history to prevent memory leak
+        this._shuffleHistory = null;
+        this._localShuffleHistory = null;
+        // Clear YouTube error retry counter
+        this._ytErrorCount = { chase: 0, freeze: 0 };
 
         // Revoke blob URLs to prevent memory leaks
         ['chase', 'freeze'].forEach(type => {
@@ -1887,6 +2010,7 @@ const Game = {
         this.dom.skipControls.classList.remove('visible');
         document.body.classList.remove('playing');
         this.dom.settings.classList.remove('panel-expanded');
+        this.dom.settings.classList.remove('scroll-hidden');
     },
 
     // Disable only music source inputs, keep sliders/toggles enabled during gameplay
@@ -1911,9 +2035,28 @@ const Game = {
     },
 
     setState(newState) {
+        // Prevent setState during active transition (debounce rapid calls)
+        if (this._inTransition && this.state !== 'IDLE') {
+            return;
+        }
+
         const changed = this.state !== newState;
         this.state = newState;
         this.clearTimers();
+
+        // Clear any in-progress crossfades before starting new one
+        if (this._crossfadeInterval) {
+            clearInterval(this._crossfadeInterval);
+            this._crossfadeInterval = null;
+        }
+        if (this._ytCrossfadeInterval) {
+            clearInterval(this._ytCrossfadeInterval);
+            this._ytCrossfadeInterval = null;
+        }
+        if (this._ytPollInterval) {
+            clearInterval(this._ytPollInterval);
+            this._ytPollInterval = null;
+        }
 
         // Lock during transition to prevent race conditions
         this._inTransition = true;
@@ -1930,10 +2073,17 @@ const Game = {
             if (this.source === 'youtube') {
                 this.crossfadeYT(isChase ? 'chase' : 'freeze', isChase ? 'freeze' : 'chase');
             } else {
-                this.crossfadeLocal(
-                    this.getAudio(isChase ? 'chase' : 'freeze'),
-                    this.getAudio(isChase ? 'freeze' : 'chase')
-                );
+                const newType = isChase ? 'chase' : 'freeze';
+                const oldType = isChase ? 'freeze' : 'chase';
+
+                // Pick new random track on phase change when shuffle enabled
+                if (this.dom.shuffle.checked && this.getTracks(newType)?.length > 1) {
+                    const newIdx = this.getRandomTrackIndex(newType, this.getTracks(newType).length);
+                    this.setIdx(newType, newIdx);
+                    this.loadTrack(newType);
+                }
+
+                this.crossfadeLocal(this.getAudio(newType), this.getAudio(oldType));
             }
         }
 
@@ -1976,14 +2126,18 @@ const Game = {
                 step++;
                 const progress = step / CROSSFADE.STEPS;
 
+                // Exponential curves for more distinct transitions
+                const fadeOutCurve = Math.pow(1 - progress, 2); // Fast drop, then taper
+                const fadeInCurve = 1 - Math.pow(1 - progress, 2); // Slow start, accelerates
+
                 // Fade out old player
                 if (oldPlayer && this.isReady(oldType)) {
-                    const oldVol = Math.round(oldStartVol * (1 - progress));
+                    const oldVol = Math.round(oldStartVol * fadeOutCurve);
                     this.safeExec(() => oldPlayer.setVolume(Math.max(0, oldVol)));
                 }
 
                 // Fade in new player
-                const newVol = Math.round(targetVol * progress);
+                const newVol = Math.round(targetVol * fadeInCurve);
                 this.safeExec(() => newPlayer.setVolume(newVol));
 
                 // Complete crossfade
@@ -2003,16 +2157,20 @@ const Game = {
 
         this.safeExec(() => {
             newPlayer.unMute();
-            newPlayer.setVolume(0);
+            // Start at low volume (15%) instead of 0 so users hear song starting while voice speaks
+            const preloadVol = Math.round(targetVol * 0.15);
+            newPlayer.setVolume(preloadVol);
 
-            const shuffled = this.shuffleToRandom(newPlayer);
+            const shuffled = this.shuffleToRandom(newPlayer, newType);
             if (!shuffled) {
                 newPlayer.playVideo();
             }
+            // Reset error count for this player on successful play
+            if (this._ytErrorCount) this._ytErrorCount[newType] = 0;
 
             if (this.dom.skipIntro.checked) {
                 let attempts = 0;
-                const maxAttempts = 50;
+                const maxAttempts = 30; // Reduced from 50 for faster response
                 this._ytPollInterval = setInterval(() => {
                     attempts++;
                     const duration = this.safeExec(() => newPlayer.getDuration()) || 0;
@@ -2022,13 +2180,14 @@ const Game = {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
                         this.safeExec(() => newPlayer.seekTo(AUDIO.SKIP_SECONDS, true));
-                        setTimeout(() => startCrossfade(), 150);
+                        // Start crossfade immediately (reduced delay)
+                        setTimeout(() => startCrossfade(), 50);
                     } else if (attempts >= maxAttempts) {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
                         startCrossfade();
                     }
-                }, 100);
+                }, 80); // Faster polling (80ms instead of 100ms)
             } else {
                 startCrossfade();
             }
@@ -2050,8 +2209,9 @@ const Game = {
         const oldStartVol = oldAudio ? Math.max(oldAudio.volume, targetVol * 0.5) : targetVol;
         if (oldAudio) oldAudio.volume = oldStartVol;
 
-        // Start new audio at volume 0
-        newAudio.volume = 0;
+        // Start new audio at low volume (15%) so users hear it starting while voice speaks
+        const preloadVol = targetVol * 0.15;
+        newAudio.volume = preloadVol;
 
         // Track when we're at correct position (for skip functionality)
         let atCorrectPosition = !shouldSkip;
@@ -2098,14 +2258,19 @@ const Game = {
             step++;
             const progress = step / CROSSFADE.STEPS;
 
+            // Exponential curves for more distinct transitions
+            const fadeOutCurve = Math.pow(1 - progress, 2); // Fast drop, then taper
+            const fadeInCurve = 1 - Math.pow(1 - progress, 2); // Slow start, accelerates
+
             // Fade out old audio
             if (oldAudio && !oldAudio.paused) {
-                oldAudio.volume = Math.max(0, oldStartVol * (1 - progress));
+                oldAudio.volume = Math.max(0, oldStartVol * fadeOutCurve);
             }
 
-            // Only fade in new audio when at correct position
+            // Fade in new audio (starts from preload volume, ramps to target)
             if (atCorrectPosition) {
-                newAudio.volume = Math.min(targetVol, targetVol * progress);
+                const fadeInVol = preloadVol + (targetVol - preloadVol) * fadeInCurve;
+                newAudio.volume = Math.min(targetVol, fadeInVol);
             }
 
             // Complete crossfade
