@@ -125,6 +125,9 @@
                 0 8px 32px rgba(0, 0, 0, 0.4),
                 inset 0 1px 0 rgba(255, 255, 255, 0.05);
             transition: all 0.4s ease;
+            overflow: hidden;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         /* When game is playing, make panel nearly invisible */
@@ -487,12 +490,17 @@
             padding: 12px;
             background: rgba(0, 0, 0, 0.2);
             border-radius: 10px;
+            overflow: hidden;
+            max-width: 100%;
+            box-sizing: border-box;
         }
         .selected-slot {
             padding: 10px;
             background: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
             text-align: center;
+            overflow: hidden;
+            min-width: 0;
         }
         .selected-slot-label {
             font-size: clamp(10px, 2.5vmin, 12px);
@@ -1190,31 +1198,48 @@ const Game = {
 
     setupMobileScroll() {
         let touchStartY = 0;
+        let touchStartedInPanel = false;
+        let touchStartedInPanelTop = false;
         let triggered = false;
 
         document.addEventListener('touchstart', (e) => {
             touchStartY = e.touches[0].clientY;
             triggered = false;
+
+            // Check if touch started inside the panel
+            const panel = this.dom.settings;
+            const panelRect = panel.getBoundingClientRect();
+            const touchX = e.touches[0].clientX;
+
+            touchStartedInPanel = (
+                touchX >= panelRect.left &&
+                touchX <= panelRect.right &&
+                touchStartY >= panelRect.top &&
+                touchStartY <= panelRect.bottom
+            );
+
+            // Check if touch started in top 60px of panel (for closing)
+            touchStartedInPanelTop = touchStartedInPanel && (touchStartY - panelRect.top < 60);
         }, { passive: true });
 
         document.addEventListener('touchmove', (e) => {
             if (!document.body.classList.contains('playing')) return;
-            if (triggered) return; // Only trigger once per swipe
+            if (triggered) return;
 
             const touchCurrentY = e.touches[0].clientY;
             const swipeDistance = touchStartY - touchCurrentY;
 
-            // React quickly - only need 20px movement
-            if (Math.abs(swipeDistance) < 20) return;
-
-            triggered = true;
-
-            // Swipe UP (finger moves up, positive value) = show panel from bottom
-            // Swipe DOWN (finger moves down, negative value) = hide panel
+            // Swipe UP = show panel (works anywhere, snappy)
             if (swipeDistance > 20) {
+                triggered = true;
                 this.dom.settings.classList.remove('scroll-hidden');
                 this.dom.settings.classList.add('scroll-visible');
-            } else if (swipeDistance < -20) {
+                return;
+            }
+
+            // Swipe DOWN = hide panel (only from top of panel or outside panel)
+            if (swipeDistance < -40 && (!touchStartedInPanel || touchStartedInPanelTop)) {
+                triggered = true;
                 this.dom.settings.classList.add('scroll-hidden');
                 this.dom.settings.classList.remove('scroll-visible');
             }
