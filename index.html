@@ -35,6 +35,30 @@
         }
         .container { width: 90%; max-width: 420px; padding: 20px; }
 
+        .logo-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 15px;
+            height: 80px;
+        }
+        .game-logo {
+            height: 70px;
+            width: auto;
+            opacity: 0.4;
+            transition: all 0.4s ease;
+            filter: drop-shadow(0 4px 15px rgba(0,0,0,0.3));
+        }
+        .game-logo.active {
+            opacity: 1;
+            transform: scale(1.15);
+            filter: drop-shadow(0 6px 25px rgba(0,0,0,0.5));
+        }
+        /* Hide logos in idle state, show during game */
+        body:not(.playing) .logo-container { display: none; }
+        body.playing .logo-container { display: flex; }
+
         #command {
             font-size: clamp(44px, 13vmin, 88px);
             font-weight: 800;
@@ -792,6 +816,10 @@
 <audio id="freezeAudio" playsinline></audio>
 
 <div class="container">
+    <div class="logo-container" id="logoContainer">
+        <img src="play.png" alt="Play" class="game-logo" id="playLogo">
+        <img src="pose.png" alt="Pose" class="game-logo" id="poseLogo">
+    </div>
     <div id="command">Play · Pose</div>
     <div id="timer"></div>
     <div id="message">Set up your music and press Start</div>
@@ -1062,7 +1090,8 @@ const Game = {
             'chaseFiles', 'freezeFiles', 'chaseName', 'freezeName',
             'chaseURL', 'freezeURL', 'sampleBtn',
             'showTimer', 'skipIntro', 'shuffle', 'muteVoice',
-            'chaseAudio', 'freezeAudio', 'ytBackground', 'videoOverlay', 'chaseWrapper', 'freezeWrapper'
+            'chaseAudio', 'freezeAudio', 'ytBackground', 'videoOverlay', 'chaseWrapper', 'freezeWrapper',
+            'playLogo', 'poseLogo'
         ];
         this.dom = ids.reduce((acc, id) => {
             const key = id === 'startButton' ? 'startBtn' : id;
@@ -1887,6 +1916,10 @@ const Game = {
         this.dom.skipControls.classList.remove('visible');
         document.body.classList.remove('playing');
         this.dom.settings.classList.remove('panel-expanded');
+
+        // Reset logo states
+        this.dom.playLogo.classList.remove('active');
+        this.dom.poseLogo.classList.remove('active');
     },
 
     // Disable only music source inputs, keep sliders/toggles enabled during gameplay
@@ -1926,6 +1959,10 @@ const Game = {
             this.dom.message.textContent = isChase ? 'Go go go!' : 'Hold still!';
             document.body.style.background = isChase ? 'var(--chase)' : 'var(--freeze)';
             this.speak(isChase ? 'Play!' : 'Pose!');
+
+            // Toggle logo highlights
+            this.dom.playLogo.classList.toggle('active', isChase);
+            this.dom.poseLogo.classList.toggle('active', !isChase);
 
             if (this.source === 'youtube') {
                 this.crossfadeYT(isChase ? 'chase' : 'freeze', isChase ? 'freeze' : 'chase');
