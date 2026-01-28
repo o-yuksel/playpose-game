@@ -1980,6 +1980,28 @@ const Game = {
                 this.stop();
                 return;
             }
+
+            // Start both players for pre-buffering (freeze starts muted)
+            const targetVol = +this.dom.volSlider.value;
+            if (this.freezePlayer && this.freezeReady) {
+                this.safeExec(() => {
+                    this.freezePlayer.setVolume(0);
+                    if (this.dom.shuffle.checked) {
+                        this.shuffleToRandom(this.freezePlayer, 'freeze');
+                    } else {
+                        this.freezePlayer.playVideo();
+                    }
+                    // Pre-seek if skip intro enabled
+                    if (this.dom.skipIntro.checked) {
+                        setTimeout(() => {
+                            const duration = this.safeExec(() => this.freezePlayer.getDuration()) || 0;
+                            if (duration > AUDIO.SKIP_SECONDS) {
+                                this.safeExec(() => this.freezePlayer.seekTo(AUDIO.SKIP_SECONDS, true));
+                            }
+                        }, 500);
+                    }
+                });
+            }
         } else {
             if (this.dom.shuffle.checked) {
                 if (this.chaseTracks.length) this.shuffleList('chase');
@@ -2020,6 +2042,10 @@ const Game = {
         if (this._ytPollInterval) {
             clearInterval(this._ytPollInterval);
             this._ytPollInterval = null;
+        }
+        if (this._ytPrepareTimeout) {
+            clearTimeout(this._ytPrepareTimeout);
+            this._ytPrepareTimeout = null;
         }
         // Clear pending metadata load timeouts
         if (this._pendingMetaTimeouts) {
@@ -2112,6 +2138,10 @@ const Game = {
             clearInterval(this._ytPollInterval);
             this._ytPollInterval = null;
         }
+        if (this._ytPrepareTimeout) {
+            clearTimeout(this._ytPrepareTimeout);
+            this._ytPrepareTimeout = null;
+        }
 
         // Lock during transition to prevent race conditions
         this._inTransition = true;
@@ -2145,7 +2175,7 @@ const Game = {
         this.scheduleNext(isChase);
     },
 
-    // Smooth crossfade for YouTube with overlapping volume ramp
+    // Smooth crossfade for YouTube - both players stay playing (one muted) for instant switching
     crossfadeYT(newType, oldType) {
         const newPlayer = this.getPlayer(newType);
         const oldPlayer = this.getPlayer(oldType);
@@ -2170,80 +2200,95 @@ const Game = {
             clearInterval(this._ytPollInterval);
             this._ytPollInterval = null;
         }
+        // Cancel any pending preparation
+        if (this._ytPrepareTimeout) {
+            clearTimeout(this._ytPrepareTimeout);
+            this._ytPrepareTimeout = null;
+        }
 
-        const startCrossfade = () => {
-            const oldStartVol = oldPlayer && this.isReady(oldType)
-                ? (this.safeExec(() => oldPlayer.getVolume()) ?? targetVol)
-                : targetVol;
+        // Get current volumes
+        const oldStartVol = oldPlayer && this.isReady(oldType)
+            ? (this.safeExec(() => oldPlayer.getVolume()) ?? targetVol)
+            : targetVol;
+        const newStartVol = this.safeExec(() => newPlayer.getVolume()) ?? 0;
 
-            let step = 0;
-            this._ytCrossfadeInterval = setInterval(() => {
-                step++;
-                const progress = step / CROSSFADE.STEPS;
-
-                // Exponential curves for more distinct transitions
-                const fadeOutCurve = Math.pow(1 - progress, 2); // Fast drop, then taper
-                const fadeInCurve = 1 - Math.pow(1 - progress, 2); // Slow start, accelerates
-
-                // Fade out old player
-                if (oldPlayer && this.isReady(oldType)) {
-                    const oldVol = Math.round(oldStartVol * fadeOutCurve);
-                    this.safeExec(() => oldPlayer.setVolume(Math.max(0, oldVol)));
-                }
-
-                // Fade in new player
-                const newVol = Math.round(targetVol * fadeInCurve);
-                this.safeExec(() => newPlayer.setVolume(newVol));
-
-                // Complete crossfade
-                if (step >= CROSSFADE.STEPS) {
-                    clearInterval(this._ytCrossfadeInterval);
-                    this._ytCrossfadeInterval = null;
-                    if (oldPlayer) {
-                        this.safeExec(() => {
-                            oldPlayer.pauseVideo();
-                            oldPlayer.setVolume(targetVol);
-                        });
-                    }
-                    this.safeExec(() => newPlayer.setVolume(targetVol));
-                }
-            }, CROSSFADE.INTERVAL);
-        };
-
+        // Ensure new player is playing (should already be from pre-buffering)
         this.safeExec(() => {
             newPlayer.unMute();
-            // Start at low volume (15%) instead of 0 so users hear song starting while voice speaks
-            const preloadVol = Math.round(targetVol * 0.15);
-            newPlayer.setVolume(preloadVol);
-
-            const shuffled = this.shuffleToRandom(newPlayer, newType);
-            if (!shuffled) {
+            const state = newPlayer.getPlayerState();
+            if (state !== 1 && state !== 3) { // Not playing or buffering
                 newPlayer.playVideo();
             }
-            // Reset error count for this player on successful play
-            if (this._ytErrorCount) this._ytErrorCount[newType] = 0;
+        });
 
-            // Start crossfade immediately - don't wait for buffering
-            startCrossfade();
+        // Reset error count
+        if (this._ytErrorCount) this._ytErrorCount[newType] = 0;
 
-            // Skip intro on NEW tracks (when shuffled) - do async after crossfade starts
-            if (this.dom.skipIntro.checked && shuffled) {
+        // Crossfade: just swap volumes, both players keep playing
+        let step = 0;
+        this._ytCrossfadeInterval = setInterval(() => {
+            step++;
+            const progress = step / CROSSFADE.STEPS;
+            const fadeOutCurve = CROSSFADE.fadeOutCurve(progress);
+            const fadeInCurve = CROSSFADE.fadeInCurve(progress);
+
+            // Fade out old player to 0 (but keep playing)
+            if (oldPlayer && this.isReady(oldType)) {
+                this.safeExec(() => oldPlayer.setVolume(Math.max(0, Math.round(oldStartVol * fadeOutCurve))));
+            }
+
+            // Fade in new player
+            const newVol = Math.round(newStartVol + (targetVol - newStartVol) * fadeInCurve);
+            this.safeExec(() => newPlayer.setVolume(newVol));
+
+            // Complete crossfade
+            if (step >= CROSSFADE.STEPS) {
+                clearInterval(this._ytCrossfadeInterval);
+                this._ytCrossfadeInterval = null;
+                this.safeExec(() => newPlayer.setVolume(targetVol));
+                if (oldPlayer && this.isReady(oldType)) {
+                    this.safeExec(() => oldPlayer.setVolume(0)); // Muted but still playing
+                }
+                // Prepare inactive player for next switch (with delay to not interfere)
+                this._ytPrepareTimeout = setTimeout(() => {
+                    this.prepareYTPlayer(oldType);
+                }, 200);
+            }
+        }, CROSSFADE.INTERVAL);
+    },
+
+    // Prepare inactive YouTube player for next phase switch (pre-buffer next video)
+    prepareYTPlayer(type) {
+        const player = this.getPlayer(type);
+        if (!player || !this.isReady(type) || this.state === 'IDLE') return;
+
+        // If shuffle is ON, pick and load next random video now so it buffers
+        if (this.dom.shuffle.checked) {
+            const shuffled = this.shuffleToRandom(player, type);
+            if (shuffled && this.dom.skipIntro.checked) {
+                // Wait for video to load, then seek to 30s
                 let attempts = 0;
                 this._ytPollInterval = setInterval(() => {
                     attempts++;
-                    const duration = this.safeExec(() => newPlayer.getDuration()) || 0;
-                    const state = this.safeExec(() => newPlayer.getPlayerState());
+                    const duration = this.safeExec(() => player.getDuration()) || 0;
+                    const state = this.safeExec(() => player.getPlayerState());
 
                     if ((state === 1 || state === 3) && duration > AUDIO.SKIP_SECONDS) {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
-                        this.safeExec(() => newPlayer.seekTo(AUDIO.SKIP_SECONDS, true));
+                        this.safeExec(() => player.seekTo(AUDIO.SKIP_SECONDS, true));
                     } else if (attempts >= YT_POLLING.MAX_ATTEMPTS) {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
-                        this.safeExec(() => newPlayer.seekTo(AUDIO.SKIP_SECONDS, true));
                     }
                 }, YT_POLLING.INTERVAL);
+            }
+        }
+        // If shuffle OFF, just ensure it's still playing (muted) - will resume from current position
+        this.safeExec(() => {
+            const state = player.getPlayerState();
+            if (state !== 1 && state !== 3) {
+                player.playVideo();
             }
         });
     },
