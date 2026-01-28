@@ -2236,56 +2236,28 @@ const Game = {
             this._ytPrepareTimeout = null;
         }
 
-        // Get current volumes before changing anything
-        const oldCurrentVol = oldPlayer && this.isReady(oldType)
-            ? (this.safeExec(() => oldPlayer.getVolume()) ?? 0)
-            : 0;
-        const newCurrentVol = this.safeExec(() => newPlayer.getVolume()) ?? 0;
+        // Immediate volume swap - old to 0, new to target
+        // Old player: mute immediately
+        if (oldPlayer && this.isReady(oldType)) {
+            oldPlayer.setVolume(0);
+        }
 
-        // Ensure new player is playing and unmuted
-        this.safeExec(() => {
-            newPlayer.unMute();
-            const state = newPlayer.getPlayerState();
-            if (state !== 1 && state !== 3) {
-                newPlayer.playVideo();
-            }
-        });
+        // New player: unmute and set to target volume
+        newPlayer.unMute();
+        newPlayer.setVolume(targetVol);
+        const state = this.safeExec(() => newPlayer.getPlayerState());
+        if (state !== 1 && state !== 3) {
+            newPlayer.playVideo();
+        }
 
         // Reset error count
         if (this._ytErrorCount) this._ytErrorCount[newType] = 0;
 
-        // Crossfade: old fades current->0, new fades current->targetVol
-        let step = 0;
-        this._ytCrossfadeInterval = setInterval(() => {
-            step++;
-            const progress = step / CROSSFADE.STEPS;
-            const fadeOutCurve = CROSSFADE.fadeOutCurve(progress);
-            const fadeInCurve = CROSSFADE.fadeInCurve(progress);
+        // Prepare inactive player for next switch
+        this._ytPrepareTimeout = setTimeout(() => {
+            this.prepareYTPlayer(oldType);
+        }, 200);
 
-            // Fade out old player from its current volume to 0
-            if (oldPlayer && this.isReady(oldType)) {
-                const vol = Math.round(oldCurrentVol * fadeOutCurve);
-                this.safeExec(() => oldPlayer.setVolume(vol));
-            }
-
-            // Fade in new player from its current volume to targetVol
-            const newVol = Math.round(newCurrentVol + (targetVol - newCurrentVol) * fadeInCurve);
-            this.safeExec(() => newPlayer.setVolume(newVol));
-
-            // Complete crossfade
-            if (step >= CROSSFADE.STEPS) {
-                clearInterval(this._ytCrossfadeInterval);
-                this._ytCrossfadeInterval = null;
-                this.safeExec(() => newPlayer.setVolume(targetVol));
-                if (oldPlayer && this.isReady(oldType)) {
-                    this.safeExec(() => oldPlayer.setVolume(0)); // Muted but still playing
-                }
-                // Prepare inactive player for next switch (with delay to not interfere)
-                this._ytPrepareTimeout = setTimeout(() => {
-                    this.prepareYTPlayer(oldType);
-                }, 200);
-            }
-        }, CROSSFADE.INTERVAL);
     },
 
     // Prepare inactive YouTube player for next phase switch (pre-buffer next video)
