@@ -136,7 +136,7 @@
             box-shadow: none;
             opacity: 0.25;
             pointer-events: auto;
-            transition: transform 0.3s ease, opacity 0.3s ease, background 0.4s ease;
+            transition: transform 0.15s ease-out, opacity 0.15s ease-out, background 0.2s ease;
         }
         /* Panel hidden - slides down off screen */
         body.playing .panel.scroll-hidden {
@@ -1190,26 +1190,31 @@ const Game = {
 
     setupMobileScroll() {
         let touchStartY = 0;
+        let triggered = false;
 
         document.addEventListener('touchstart', (e) => {
             touchStartY = e.touches[0].clientY;
+            triggered = false;
         }, { passive: true });
 
-        document.addEventListener('touchend', (e) => {
+        document.addEventListener('touchmove', (e) => {
             if (!document.body.classList.contains('playing')) return;
+            if (triggered) return; // Only trigger once per swipe
 
-            const touchEndY = e.changedTouches[0].clientY;
-            const swipeDistance = touchStartY - touchEndY;
+            const touchCurrentY = e.touches[0].clientY;
+            const swipeDistance = touchStartY - touchCurrentY;
 
-            // Need at least 30px swipe to trigger
-            if (Math.abs(swipeDistance) < 30) return;
+            // React quickly - only need 20px movement
+            if (Math.abs(swipeDistance) < 20) return;
+
+            triggered = true;
 
             // Swipe UP (finger moves up, positive value) = show panel from bottom
             // Swipe DOWN (finger moves down, negative value) = hide panel
-            if (swipeDistance > 30) {
+            if (swipeDistance > 20) {
                 this.dom.settings.classList.remove('scroll-hidden');
                 this.dom.settings.classList.add('scroll-visible');
-            } else if (swipeDistance < -30) {
+            } else if (swipeDistance < -20) {
                 this.dom.settings.classList.add('scroll-hidden');
                 this.dom.settings.classList.remove('scroll-visible');
             }
