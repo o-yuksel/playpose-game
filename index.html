@@ -1002,7 +1002,7 @@ const SHUFFLE = {
 };
 
 const YT_POLLING = {
-    MAX_ATTEMPTS: 15,
+    MAX_ATTEMPTS: 25,  // ~2 seconds max wait for video ready
     INTERVAL: 80
 };
 
@@ -2200,6 +2200,8 @@ const Game = {
                     } else if (attempts >= YT_POLLING.MAX_ATTEMPTS) {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
+                        // Try to seek anyway as fallback
+                        this.safeExec(() => newPlayer.seekTo(AUDIO.SKIP_SECONDS, true));
                         startCrossfade();
                     }
                 }, YT_POLLING.INTERVAL);
