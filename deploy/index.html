@@ -584,10 +584,10 @@
         /* YouTube Video Background */
         .yt-background {
             position: fixed;
-            top: 0;
+            top: -50px;
             left: 0;
             width: 100%;
-            height: 100%;
+            height: calc(100% + 100px);
             z-index: -2;
             overflow: hidden;
             opacity: 0;
@@ -615,11 +615,11 @@
         /* Dark overlay for readability */
         .video-overlay {
             position: fixed;
-            top: 0;
+            top: -50px;
             left: 0;
             width: 100%;
-            height: 200%;
-            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.4) 50%, #000 50%, #000 100%);
+            height: calc(100% + 100px);
+            background: rgba(0, 0, 0, 0.4);
             z-index: -1;
             opacity: 0;
             transition: opacity 0.8s ease;
