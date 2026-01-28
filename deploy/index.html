@@ -1970,7 +1970,8 @@ const Game = {
         this.disableMusicInputs(true);
         this.dom.skipControls.classList.add('visible');
         document.body.classList.add('playing');
-        // Start with panel hidden, swipe down to reveal (or hover on desktop)
+        // Scroll to top so video is fullscreen, panel hidden
+        window.scrollTo({ top: 0, behavior: 'instant' });
         this.dom.settings.classList.add('scroll-hidden');
 
         this.setState('CHASE');
@@ -2032,6 +2033,8 @@ const Game = {
         this.dom.settings.classList.remove('panel-expanded');
         this.dom.settings.classList.remove('scroll-hidden');
         this.dom.settings.classList.remove('scroll-visible');
+        // Scroll to top when idle
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
     // Disable only music source inputs, keep sliders/toggles enabled during gameplay
