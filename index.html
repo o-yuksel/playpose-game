@@ -2080,19 +2080,19 @@ const Game = {
             newPlayer.unMute();
             newPlayer.setVolume(0);
 
-            // Check if player is already playing (pre-buffered)
+            // Check if player is already playing (pre-buffered by scheduleNext)
             const playerState = this.safeExec(() => newPlayer.getPlayerState());
             const isAlreadyPlaying = playerState === 1 || playerState === 3; // PLAYING or BUFFERING
 
-            // Always shuffle to a new track (even if already playing)
-            const shuffled = this.shuffleToRandom(newPlayer);
-
-            // Only call playVideo if not already playing and didn't shuffle
-            if (!isAlreadyPlaying && !shuffled) {
-                newPlayer.playVideo();
+            // Only shuffle if NOT pre-buffered (pre-buffer already shuffled)
+            if (!isAlreadyPlaying) {
+                const shuffled = this.shuffleToRandom(newPlayer);
+                if (!shuffled) {
+                    newPlayer.playVideo();
+                }
             }
 
-            // If already playing and buffered, start crossfade immediately
+            // If already playing (pre-buffered), start crossfade immediately
             if (isAlreadyPlaying) {
                 startCrossfade();
             } else if (this.dom.skipIntro.checked) {
@@ -2226,6 +2226,18 @@ const Game = {
             }, 1000);
         }
 
+        // Pre-buffer: shuffle inactive player 3 seconds before switch
+        const PREBUFFER_SECONDS = 3;
+        if (this.source === 'youtube' && duration > PREBUFFER_SECONDS + 1) {
+            this._prebufferTimer = setTimeout(() => {
+                const inactiveType = isChase ? 'freeze' : 'chase';
+                const inactivePlayer = this.getPlayer(inactiveType);
+                if (inactivePlayer && this.isReady(inactiveType) && this.dom.shuffle.checked) {
+                    this.safeExec(() => this.shuffleToRandom(inactivePlayer));
+                }
+            }, (duration - PREBUFFER_SECONDS) * 1000);
+        }
+
         this.timer = setTimeout(() => {
             // Use repeat chance to determine if phase changes or repeats
             const nextPhase = isChase ? 'FREEZE' : 'CHASE';
@@ -2238,6 +2250,7 @@ const Game = {
     clearTimers() {
         if (this.timer) { clearTimeout(this.timer); this.timer = null; }
         if (this.countdown) { clearInterval(this.countdown); this.countdown = null; }
+        if (this._prebufferTimer) { clearTimeout(this._prebufferTimer); this._prebufferTimer = null; }
         this.dom.timer.textContent = '';
     },
 
