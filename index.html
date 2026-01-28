@@ -2080,16 +2080,16 @@ const Game = {
             newPlayer.unMute();
             newPlayer.setVolume(0);
 
-            // Check if player is already playing (pre-buffered) - skip re-initialization
+            // Check if player is already playing (pre-buffered)
             const playerState = this.safeExec(() => newPlayer.getPlayerState());
             const isAlreadyPlaying = playerState === 1 || playerState === 3; // PLAYING or BUFFERING
 
-            if (!isAlreadyPlaying) {
-                // Only start playback if not already playing
-                const shuffled = this.shuffleToRandom(newPlayer);
-                if (!shuffled) {
-                    newPlayer.playVideo();
-                }
+            // Always shuffle to a new track (even if already playing)
+            const shuffled = this.shuffleToRandom(newPlayer);
+
+            // Only call playVideo if not already playing and didn't shuffle
+            if (!isAlreadyPlaying && !shuffled) {
+                newPlayer.playVideo();
             }
 
             // If already playing and buffered, start crossfade immediately
