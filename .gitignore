@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Archives (old versions)
+archive/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Local Netlify folder
+.netlify

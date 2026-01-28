@@ -1,0 +1,2204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#000000">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Play · Pose</title>
+    <style>
+        :root {
+            --play: #006955;
+            --pose: #D64E52;
+            --idle: #000000;
+            --text: #E7EEE7;
+            --accent: #FEAE73;
+            --panel: rgba(0, 0, 0, 0.6);
+            --input: rgba(0, 0, 0, 0.4);
+            --border: rgba(231, 238, 231, 0.15);
+            --slider-thumb-size: 28px;
+            --slider-track-height: 8px;
+            --slider-thumb-offset: -10px;
+            /* Legacy aliases for existing code */
+            --chase: var(--play);
+            --freeze: var(--pose);
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100dvh; margin: 0;
+            background: var(--idle); color: var(--text);
+            transition: background 0.4s; text-align: center;
+            overscroll-behavior: none;
+        }
+        .container { width: 90%; max-width: 420px; padding: 20px; }
+
+        #command {
+            font-size: clamp(44px, 13vmin, 88px);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        #timer {
+            font-size: clamp(28px, 8vmin, 52px);
+            font-weight: 600;
+            opacity: 0.9;
+            min-height: 1.2em;
+            letter-spacing: 2px;
+        }
+        #message {
+            font-size: clamp(15px, 4.5vmin, 22px);
+            opacity: 0.75;
+            margin-top: 12px;
+            min-height: 1.5em;
+            letter-spacing: 0.5px;
+        }
+
+        /* Shared button base styles */
+        .btn {
+            font-weight: 600;
+            cursor: pointer;
+            border: 2px solid rgba(255,255,255,0.5);
+            background: transparent;
+            color: var(--text);
+            border-radius: 30px;
+            transition: all 0.25s ease;
+            touch-action: manipulation;
+        }
+        .btn:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.8);
+            box-shadow: 0 0 20px rgba(255,255,255,0.2);
+        }
+        .btn:active { transform: scale(0.96); background: rgba(255,255,255,0.15); }
+        .btn:disabled { opacity: 0.4; box-shadow: none; }
+
+        #startButton {
+            margin-top: 30px;
+            padding: 18px 50px;
+            font-size: clamp(18px, 5vmin, 28px);
+            border-radius: 50px;
+            border-color: var(--text);
+            background: rgba(255,255,255,0.05);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        #startButton:hover {
+            background: rgba(255,255,255,0.15);
+            box-shadow: 0 0 30px rgba(255,255,255,0.3), 0 4px 15px rgba(0,0,0,0.2);
+            transform: translateY(-2px);
+        }
+        #startButton:active {
+            transform: scale(0.96) translateY(0);
+        }
+
+        .skip-controls {
+            display: none;
+            margin-top: 16px;
+        }
+        .skip-controls.visible { display: block; }
+
+        .skip-btn {
+            padding: 12px 28px;
+            font-size: clamp(14px, 3.5vmin, 18px);
+            font-weight: 500;
+            background: rgba(255,255,255,0.15);
+        }
+        .skip-btn:active { background: rgba(255,255,255,0.25); }
+
+        .panel {
+            position: relative;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(20px) saturate(1.1);
+            -webkit-backdrop-filter: blur(20px) saturate(1.1);
+            padding: 28px;
+            padding-top: 32px;
+            border-radius: 24px;
+            margin-top: 30px;
+            border: 1px solid rgba(231, 238, 231, 0.1);
+            border-top: 1px solid rgba(231, 238, 231, 0.15);
+            border-left: 1px solid rgba(231, 238, 231, 0.12);
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            transition: all 0.4s ease;
+        }
+
+        /* When game is playing, make panel nearly invisible */
+        body.playing .panel {
+            background: rgba(0, 0, 0, 0.12);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border-color: rgba(231, 238, 231, 0.02);
+            box-shadow: none;
+            opacity: 0.25;
+            pointer-events: auto;
+        }
+        /* Desktop: hover to reveal */
+        @media (hover: hover) {
+            body.playing .panel:hover {
+                background: rgba(0, 0, 0, 0.9);
+                backdrop-filter: blur(25px);
+                -webkit-backdrop-filter: blur(25px);
+                opacity: 1;
+            }
+        }
+        /* Mobile/touch: tap to toggle via JS-added class */
+        body.playing .panel.panel-expanded {
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            opacity: 1;
+        }
+        /* Visual hint for tap on mobile during playing */
+        body.playing .panel::before {
+            content: 'Tap for settings';
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            opacity: 0.5;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            pointer-events: none;
+        }
+        body.playing .panel.panel-expanded::before {
+            content: 'Tap to minimize';
+        }
+        @media (hover: hover) {
+            body.playing .panel::before { display: none; }
+        }
+
+        /* Simple Sliders */
+        .slider-group { margin-bottom: 28px; }
+        .slider-group:last-of-type { margin-bottom: 0; }
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            font-size: clamp(15px, 3.8vmin, 19px);
+        }
+        .slider-label {
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .slider-value {
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 0.88em;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .slider-desc {
+            font-size: clamp(11px, 2.5vmin, 13px);
+            opacity: 0.6;
+            margin-top: 6px;
+            font-style: italic;
+        }
+
+        /* Slider tick marks */
+        .slider-ticks {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 12px;
+            margin-top: -8px;
+            pointer-events: none;
+        }
+        .slider-ticks span {
+            width: 2px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 1px;
+        }
+
+        /* Range input styles */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 44px;
+            background: transparent;
+            cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: var(--slider-track-height);
+            background: linear-gradient(to right, var(--border) 0%, var(--accent) 100%);
+            border-radius: 4px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: var(--slider-thumb-size);
+            height: var(--slider-thumb-size);
+            background: var(--text);
+            border-radius: 50%;
+            margin-top: var(--slider-thumb-offset);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        input[type="range"]::-moz-range-track {
+            height: var(--slider-track-height);
+            background: linear-gradient(to right, var(--border) 0%, var(--accent) 100%);
+            border-radius: 4px;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: var(--slider-thumb-size);
+            height: var(--slider-thumb-size);
+            background: var(--text);
+            border-radius: 50%;
+            border: none;
+        }
+
+        .divider {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 26px 0;
+        }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 22px; }
+        .tab {
+            flex: 1; padding: 14px 10px;
+            border: none;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: var(--text); cursor: pointer;
+            border-radius: 14px;
+            font-size: clamp(13px, 3.2vmin, 16px);
+            font-weight: 600;
+            transition: all 0.25s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .tab:hover { background: rgba(255, 255, 255, 0.15); }
+        .tab.active {
+            background: rgba(0, 105, 85, 0.6);
+            border-color: rgba(0, 105, 85, 0.4);
+            box-shadow: 0 4px 15px rgba(0, 105, 85, 0.3);
+        }
+        .tab:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Music Panel */
+        .music-panel { display: none; }
+        .music-panel.active { display: block; }
+
+        .file-input-wrapper {
+            background: var(--input);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            text-align: left;
+        }
+        .file-input-wrapper label {
+            display: block;
+            font-size: clamp(13px, 3vmin, 15px);
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .file-input-wrapper input[type="file"] { width: 100%; }
+        .file-input-wrapper input[type="file"]:disabled { opacity: 0.4; cursor: not-allowed; }
+        .file-name {
+            font-size: clamp(11px, 2.5vmin, 13px);
+            opacity: 0.6;
+            margin-top: 6px;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            background: var(--input);
+            color: var(--text);
+            font-size: clamp(14px, 3.5vmin, 16px);
+            margin-bottom: 8px;
+        }
+        .url-input::placeholder { color: rgba(255,255,255,0.4); }
+        .url-input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .sample-btn {
+            background: rgba(254, 174, 115, 0.3);
+            border: 1px solid var(--accent);
+            color: var(--text);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: clamp(12px, 2.8vmin, 14px);
+            cursor: pointer;
+            margin-bottom: 16px;
+            transition: all 0.2s;
+        }
+        .sample-btn:hover { background: rgba(254, 174, 115, 0.5); }
+        .sample-btn:active { background: var(--accent); }
+        .sample-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .help-text {
+            font-size: clamp(11px, 2.5vmin, 13px);
+            opacity: 0.5;
+            margin-top: 8px;
+            text-align: left;
+        }
+
+        /* Browse Panel Styles */
+        .mood-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .mood-btn {
+            padding: 12px 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            color: var(--text);
+            font-size: clamp(11px, 2.8vmin, 14px);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .mood-btn:hover { background: rgba(255, 255, 255, 0.15); }
+        .mood-btn:active { transform: scale(0.95); }
+        .mood-btn.active {
+            background: rgba(254, 174, 115, 0.4);
+            border-color: var(--accent);
+        }
+        .mood-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .search-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .search-row input {
+            flex: 1;
+        }
+        .search-btn {
+            padding: 12px 16px;
+            background: var(--accent);
+            border: none;
+            border-radius: 12px;
+            color: #333;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .search-btn:hover { background: #ffbb85; }
+        .search-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .playlist-results {
+            max-height: 280px;
+            overflow-y: auto;
+            margin-bottom: 16px;
+        }
+        .playlist-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .playlist-card:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .playlist-card.selected {
+            border-color: var(--accent);
+            background: rgba(254, 174, 115, 0.15);
+        }
+        .playlist-thumb {
+            width: 50px;
+            height: 50px;
+            border-radius: 6px;
+            object-fit: cover;
+            background: var(--input);
+        }
+        .playlist-info {
+            flex: 1;
+            min-width: 0;
+            text-align: left;
+        }
+        .playlist-title {
+            font-size: clamp(12px, 3vmin, 14px);
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .playlist-desc {
+            font-size: clamp(10px, 2.5vmin, 12px);
+            opacity: 0.6;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .playlist-actions {
+            display: flex;
+            gap: 6px;
+        }
+        .playlist-use-btn {
+            padding: 6px 10px;
+            font-size: clamp(10px, 2.5vmin, 12px);
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .playlist-use-btn.chase {
+            background: var(--chase);
+            color: white;
+        }
+        .playlist-use-btn.freeze {
+            background: var(--freeze);
+            color: white;
+        }
+        .playlist-use-btn:hover { opacity: 0.85; }
+
+        .selected-playlists {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+        .selected-slot {
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            text-align: center;
+        }
+        .selected-slot-label {
+            font-size: clamp(10px, 2.5vmin, 12px);
+            font-weight: 600;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .selected-slot-label.chase { color: var(--chase); }
+        .selected-slot-label.freeze { color: var(--freeze); }
+        .selected-slot-title {
+            font-size: clamp(11px, 2.8vmin, 13px);
+            opacity: 0.8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .browse-loading {
+            text-align: center;
+            padding: 20px;
+            opacity: 0.6;
+        }
+        .browse-error {
+            text-align: center;
+            padding: 16px;
+            background: rgba(231, 76, 60, 0.2);
+            border-radius: 8px;
+            font-size: clamp(12px, 3vmin, 14px);
+        }
+
+        /* Toggles */
+        .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 14px 16px;
+            border-radius: 14px;
+            font-size: clamp(12px, 3.2vmin, 15px);
+            font-weight: 500;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.25s ease;
+        }
+        .toggle:hover { background: rgba(255, 255, 255, 0.15); }
+        .toggle input[type="checkbox"] {
+            width: 22px; height: 22px;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: rgba(0, 105, 85, 0.92);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: clamp(14px, 3.5vmin, 16px);
+            font-weight: 500;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            z-index: 1000;
+            max-width: 90%;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            border: 1px solid rgba(231, 238, 231, 0.2);
+        }
+        .toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* YouTube Video Background */
+        .yt-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+        .yt-background.visible { opacity: 1; }
+        .yt-background iframe {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 177.78vh; /* 16:9 aspect ratio */
+            height: 100vh;
+            min-width: 100vw;
+            min-height: 56.25vw;
+            transform: translate(-50%, -50%);
+        }
+        .yt-wrapper {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transition: opacity 0.6s ease;
+        }
+        .yt-wrapper.hidden { opacity: 0; pointer-events: none; }
+
+        /* Dark overlay for readability */
+        .video-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+        .video-overlay.visible { opacity: 1; }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 480px) {
+            .container { width: 95%; padding: 12px; }
+
+            .panel {
+                padding: 18px;
+                border-radius: 18px;
+                margin-top: 20px;
+            }
+
+            .mood-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            .mood-btn {
+                padding: 10px 6px;
+                font-size: clamp(10px, 2.5vmin, 12px);
+            }
+
+            .playlist-results { max-height: 220px; }
+            .playlist-card { padding: 8px; gap: 8px; }
+            .playlist-thumb { width: 40px; height: 40px; }
+            .playlist-actions { flex-direction: column; gap: 4px; }
+            .playlist-use-btn { padding: 5px 8px; }
+
+            .selected-playlists { padding: 10px; gap: 8px; }
+
+            #command {
+                font-size: clamp(36px, 11vmin, 60px);
+                letter-spacing: 2px;
+            }
+
+            #timer {
+                font-size: clamp(22px, 7vmin, 40px);
+            }
+
+            #message {
+                font-size: clamp(13px, 4vmin, 18px);
+                margin-top: 8px;
+            }
+
+            #startButton {
+                margin-top: 20px;
+                padding: 14px 40px;
+                font-size: clamp(16px, 4.5vmin, 22px);
+            }
+
+            .slider-group { margin-bottom: 20px; }
+
+            .slider-header {
+                margin-bottom: 10px;
+                font-size: clamp(13px, 3.5vmin, 16px);
+            }
+
+            .slider-value {
+                padding: 4px 10px;
+                font-size: 0.82em;
+            }
+
+            .slider-desc {
+                font-size: clamp(10px, 2.3vmin, 12px);
+                margin-top: 4px;
+            }
+
+            .divider { margin: 18px 0; }
+
+            .tabs { gap: 8px; margin-bottom: 16px; }
+            .tab {
+                padding: 10px 6px;
+                font-size: clamp(12px, 3vmin, 14px);
+                border-radius: 10px;
+            }
+
+            /* Stack toggles vertically on mobile */
+            .toggles {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            .toggle {
+                padding: 12px 14px;
+                font-size: clamp(12px, 3vmin, 14px);
+            }
+
+            .file-input-wrapper {
+                padding: 12px;
+                margin-bottom: 8px;
+            }
+
+            .url-input {
+                padding: 12px;
+                font-size: clamp(13px, 3.2vmin, 15px);
+                margin-bottom: 6px;
+            }
+
+            .sample-btn {
+                padding: 8px 14px;
+                font-size: clamp(11px, 2.6vmin, 13px);
+            }
+
+            .help-text {
+                font-size: clamp(10px, 2.3vmin, 12px);
+            }
+
+            .skip-btn {
+                padding: 10px 24px;
+                font-size: clamp(13px, 3.2vmin, 16px);
+            }
+
+            .toast {
+                padding: 12px 20px;
+                font-size: clamp(12px, 3vmin, 14px);
+                border-radius: 10px;
+                bottom: 16px;
+            }
+        }
+
+        /* Extra small screens */
+        @media (max-width: 360px) {
+            .container { padding: 8px; }
+
+            .panel { padding: 14px; }
+
+            #command {
+                font-size: clamp(28px, 10vmin, 48px);
+            }
+
+            .slider-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }
+
+            .slider-value {
+                align-self: flex-end;
+            }
+        }
+
+        /* Landscape mobile */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .container {
+                max-width: 600px;
+            }
+
+            #command {
+                font-size: clamp(28px, 8vmin, 44px);
+                margin-bottom: 4px;
+            }
+
+            #timer {
+                font-size: clamp(20px, 6vmin, 32px);
+            }
+
+            #message {
+                font-size: clamp(12px, 3vmin, 16px);
+                margin-top: 4px;
+            }
+
+            #startButton {
+                margin-top: 12px;
+                padding: 10px 32px;
+            }
+
+            .panel {
+                margin-top: 12px;
+                padding: 14px;
+            }
+
+            .slider-group { margin-bottom: 14px; }
+            .divider { margin: 12px 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- YouTube Video Background -->
+<div class="yt-background" id="ytBackground">
+    <div class="yt-wrapper" id="chaseWrapper">
+        <div id="chaseYT"></div>
+    </div>
+    <div class="yt-wrapper" id="freezeWrapper">
+        <div id="freezeYT"></div>
+    </div>
+</div>
+<div class="video-overlay" id="videoOverlay"></div>
+
+<audio id="chaseAudio" playsinline></audio>
+<audio id="freezeAudio" playsinline></audio>
+
+<div class="container">
+    <div id="command">Play · Pose</div>
+    <div id="timer"></div>
+    <div id="message">Set up your music and press Start</div>
+
+    <button id="startButton" class="btn">Start Game</button>
+
+    <div class="skip-controls" id="skipControls">
+        <button class="skip-btn btn" id="skipBtn">Skip Song</button>
+    </div>
+
+    <div class="panel" id="settings">
+        <!-- Simple Timing Controls -->
+        <div class="slider-group">
+            <div class="slider-header">
+                <span class="slider-label">Phase Length</span>
+                <span class="slider-value" id="lengthValue">Medium</span>
+            </div>
+            <input type="range" id="lengthSlider" min="1" max="5" value="3">
+            <div class="slider-ticks"><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="slider-desc" id="lengthDesc">~20 seconds per phase</div>
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-header">
+                <span class="slider-label">Repeat Chance</span>
+                <span class="slider-value" id="repeatValue">Never</span>
+            </div>
+            <input type="range" id="repeatSlider" min="1" max="4" value="1">
+            <div class="slider-ticks"><span></span><span></span><span></span><span></span></div>
+            <div class="slider-desc" id="repeatDesc">Always alternates Play/Pose</div>
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-header">
+                <span class="slider-label">Timing</span>
+                <span class="slider-value" id="timingValue">Steady</span>
+            </div>
+            <input type="range" id="timingSlider" min="1" max="4" value="1">
+            <div class="slider-ticks"><span></span><span></span><span></span><span></span></div>
+            <div class="slider-desc" id="timingDesc">Consistent phase durations</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Music Source -->
+        <div class="tabs">
+            <button class="tab" id="browseTab">Browse</button>
+            <button class="tab active" id="localTab">Local</button>
+            <button class="tab" id="ytTab">URL</button>
+        </div>
+
+        <div class="music-panel" id="browsePanel">
+            <div class="mood-grid" id="moodGrid">
+                <button class="mood-btn" data-mood="party">Party</button>
+                <button class="mood-btn" data-mood="workout">Workout</button>
+                <button class="mood-btn" data-mood="chill">Chill</button>
+                <button class="mood-btn" data-mood="focus">Focus</button>
+                <button class="mood-btn" data-mood="energize">Energy</button>
+                <button class="mood-btn" data-mood="romance">Romance</button>
+                <button class="mood-btn" data-mood="kids">Kids</button>
+                <button class="mood-btn" data-mood="sleep">Sleep</button>
+                <button class="mood-btn" data-mood="commute">Commute</button>
+            </div>
+            <div class="search-row">
+                <input type="text" class="url-input" id="playlistSearch" placeholder="Search playlists...">
+                <button class="search-btn" id="searchBtn">Search</button>
+            </div>
+            <div class="playlist-results" id="playlistResults">
+                <div class="help-text" style="text-align: center; padding: 20px;">
+                    Select a mood or search to find playlists
+                </div>
+            </div>
+            <div class="selected-playlists">
+                <div class="selected-slot">
+                    <div class="selected-slot-label chase">Play</div>
+                    <div class="selected-slot-title" id="selectedChase">Not selected</div>
+                </div>
+                <div class="selected-slot">
+                    <div class="selected-slot-label freeze">Pose</div>
+                    <div class="selected-slot-title" id="selectedFreeze">Not selected</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="music-panel active" id="localPanel">
+            <div class="file-input-wrapper">
+                <label>Play Music</label>
+                <input type="file" id="chaseFiles" accept="audio/*" multiple>
+                <div class="file-name" id="chaseName">No files selected</div>
+            </div>
+            <div class="file-input-wrapper">
+                <label>Pose Music</label>
+                <input type="file" id="freezeFiles" accept="audio/*" multiple>
+                <div class="file-name" id="freezeName">No files selected</div>
+            </div>
+        </div>
+
+        <div class="music-panel" id="ytPanel">
+            <input type="text" class="url-input" id="chaseURL" placeholder="Play: Paste YouTube URL">
+            <input type="text" class="url-input" id="freezeURL" placeholder="Pose: Paste YouTube URL">
+            <button class="sample-btn" id="sampleBtn">Load Sample Music</button>
+            <div class="help-text">Tip: YouTube won't play when screen is off on mobile. Use local files for that.</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Toggles -->
+        <div class="toggles">
+            <div class="toggle">
+                <span>Show Timer</span>
+                <input type="checkbox" id="showTimer">
+            </div>
+            <div class="toggle">
+                <span>Skip 30s</span>
+                <input type="checkbox" id="skipIntro" checked>
+            </div>
+            <div class="toggle">
+                <span>Shuffle</span>
+                <input type="checkbox" id="shuffle" checked>
+            </div>
+            <div class="toggle">
+                <span>Mute Voice</span>
+                <input type="checkbox" id="muteVoice">
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Volume -->
+        <div class="slider-group">
+            <div class="slider-header">
+                <span class="slider-label">Volume</span>
+                <span class="slider-value" id="volValue">50%</span>
+            </div>
+            <input type="range" id="volSlider" min="0" max="100" value="50" step="5">
+        </div>
+    </div>
+</div>
+
+<script>
+// Play · Pose Party Game v22 - Mobile responsive UI + glassmorphism polish
+
+const TIMEOUTS = {
+    YT_INIT: 8000,
+    TOAST: 3000,
+    SAVE_DEBOUNCE: 300,
+    PHASE_TRANSITION_LOCK: 200,
+    YT_SEEK_DELAY: 300  // Wait for YouTube to start buffering before seeking
+};
+
+const CROSSFADE = {
+    DURATION: 800,      // Total crossfade time in ms
+    STEPS: 20,          // Number of volume steps
+    get INTERVAL() { return this.DURATION / this.STEPS; }
+};
+
+// Debounce utility
+function debounce(fn, delay) {
+    let timer = null;
+    return function(...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+}
+
+const AUDIO = {
+    SKIP_SECONDS: 30
+};
+
+const YT_ERRORS = {
+    2: 'Invalid video',
+    100: 'Not found',
+    101: 'Blocked',
+    150: 'Blocked'
+};
+
+// ============================================
+// YouTube API Ready Handler
+// ============================================
+let ytReady = false, ytPending = null;
+function onYouTubeIframeAPIReady() {
+    ytReady = true;
+    if (ytPending) { ytPending(); ytPending = null; }
+}
+
+// ============================================
+// GAME OBJECT
+// ============================================
+const Game = {
+    state: 'IDLE',
+    timer: null,
+    countdown: null,
+    remaining: 0,
+    wakeLock: null,
+    source: 'local',
+
+    // Playlists
+    chaseTracks: [], freezeTracks: [],
+    chaseIdx: 0, freezeIdx: 0,
+
+    // YouTube
+    chasePlayer: null, freezePlayer: null,
+    chaseReady: false, freezeReady: false,
+
+    dom: {},
+
+    // Timing presets with descriptions
+    LENGTH_PRESETS: {
+        1: { base: 5, label: 'Very Short', desc: '~5 seconds per phase' },
+        2: { base: 10, label: 'Short', desc: '~10 seconds per phase' },
+        3: { base: 20, label: 'Medium', desc: '~20 seconds per phase' },
+        4: { base: 35, label: 'Long', desc: '~35 seconds per phase' },
+        5: { base: 50, label: 'Very Long', desc: '~50 seconds per phase' }
+    },
+    // Repeat chance: probability that current phase repeats instead of switching
+    REPEAT_CHANCE: {
+        1: { chance: 0, label: 'Never', desc: 'Always alternates Play/Pose' },
+        2: { chance: 0.15, label: 'Sometimes', desc: '15% chance to repeat same phase' },
+        3: { chance: 0.30, label: 'Often', desc: '30% chance to repeat same phase' },
+        4: { chance: 0.50, label: 'Chaotic', desc: '50% chance to repeat same phase' }
+    },
+    // Timing variance: how much phase duration varies from base
+    TIMING_VARIANCE: {
+        1: { variance: 0.1, label: 'Steady', desc: 'Consistent phase durations' },
+        2: { variance: 0.25, label: 'Slight', desc: 'Small timing variations' },
+        3: { variance: 0.4, label: 'Variable', desc: 'Moderate timing variations' },
+        4: { variance: 0.6, label: 'Wild', desc: 'Unpredictable timing' }
+    },
+
+    getPlayer(type) { return this[`${type}Player`]; },
+    getAudio(type) { return this.dom[`${type}Audio`]; },
+    getTracks(type) { return this[`${type}Tracks`]; },
+    getIdx(type) { return this[`${type}Idx`]; },
+    setIdx(type, val) { this[`${type}Idx`] = val; },
+    isReady(type) { return this[`${type}Ready`]; },
+
+    safeExec(fn, fallback = null) {
+        try { return fn(); } catch(e) { return fallback; }
+    },
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    init() {
+        this.cacheDom();
+        this.load();
+        this.bind();
+        this.setupMedia();
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && this.state !== 'IDLE') {
+                this.requestWake();
+                this.resumeAudio();
+            }
+        });
+    },
+
+    cacheDom() {
+        const ids = [
+            'command', 'timer', 'message', 'toast',
+            'startButton', 'skipControls', 'skipBtn', 'settings',
+            'lengthSlider', 'lengthValue', 'lengthDesc',
+            'repeatSlider', 'repeatValue', 'repeatDesc',
+            'timingSlider', 'timingValue', 'timingDesc',
+            'volSlider', 'volValue',
+            'browseTab', 'localTab', 'ytTab', 'browsePanel', 'localPanel', 'ytPanel',
+            'moodGrid', 'playlistSearch', 'searchBtn', 'playlistResults',
+            'selectedChase', 'selectedFreeze',
+            'chaseFiles', 'freezeFiles', 'chaseName', 'freezeName',
+            'chaseURL', 'freezeURL', 'sampleBtn',
+            'showTimer', 'skipIntro', 'shuffle', 'muteVoice',
+            'chaseAudio', 'freezeAudio', 'ytBackground', 'videoOverlay', 'chaseWrapper', 'freezeWrapper'
+        ];
+        this.dom = ids.reduce((acc, id) => {
+            const key = id === 'startButton' ? 'startBtn' : id;
+            acc[key] = document.getElementById(id);
+            return acc;
+        }, {});
+    },
+
+    bind() {
+        this.dom.startBtn.onclick = () => this.toggle();
+
+        // Tabs
+        this.dom.browseTab.onclick = () => this.setSource('browse');
+        this.dom.localTab.onclick = () => this.setSource('local');
+        this.dom.ytTab.onclick = () => this.setSource('youtube');
+
+        // Browse panel - mood buttons
+        this.dom.moodGrid.querySelectorAll('.mood-btn').forEach(btn => {
+            btn.onclick = () => this.browseMood(btn.dataset.mood, btn);
+        });
+
+        // Browse panel - search
+        this.dom.searchBtn.onclick = () => this.searchPlaylists();
+        this.dom.playlistSearch.onkeypress = e => {
+            if (e.key === 'Enter') this.searchPlaylists();
+        };
+
+        // Sliders - update label and description
+        this.dom.lengthSlider.oninput = e => {
+            const preset = this.LENGTH_PRESETS[e.target.value];
+            this.dom.lengthValue.textContent = preset.label;
+            this.dom.lengthDesc.textContent = preset.desc;
+            this.save();
+        };
+        this.dom.repeatSlider.oninput = e => {
+            const preset = this.REPEAT_CHANCE[e.target.value];
+            this.dom.repeatValue.textContent = preset.label;
+            this.dom.repeatDesc.textContent = preset.desc;
+            this.save();
+        };
+        this.dom.timingSlider.oninput = e => {
+            const preset = this.TIMING_VARIANCE[e.target.value];
+            this.dom.timingValue.textContent = preset.label;
+            this.dom.timingDesc.textContent = preset.desc;
+            this.save();
+        };
+        this.dom.volSlider.oninput = e => {
+            this.dom.volValue.textContent = e.target.value + '%';
+            this.setVolume(+e.target.value);
+            this.save();
+        };
+
+        // Files
+        this.dom.chaseFiles.onchange = e => this.loadFiles(e, 'chase');
+        this.dom.freezeFiles.onchange = e => this.loadFiles(e, 'freeze');
+
+        // Audio ended
+        this.dom.chaseAudio.onended = () => this.nextTrack('chase');
+        this.dom.freezeAudio.onended = () => this.nextTrack('freeze');
+
+        // Toggles - with immediate effect handlers
+        this.dom.showTimer.onchange = () => {
+            this.save();
+            this.handleShowTimerChange();
+        };
+        this.dom.skipIntro.onchange = () => this.save();
+        this.dom.shuffle.onchange = () => this.save();
+        this.dom.muteVoice.onchange = () => this.save();
+
+        // URL inputs
+        [this.dom.chaseURL, this.dom.freezeURL].forEach(input => {
+            input.onchange = () => {
+                if (input.value && input.value.includes('list=RD')) {
+                    this.showToast('Mix playlists not supported - using video only');
+                }
+                this.save();
+            };
+        });
+
+        // Sample button
+        this.dom.sampleBtn.onclick = () => {
+            const playlist = 'https://www.youtube.com/watch?v=n6N1_sxlBU8&list=PLDEoYTx7cT4dC7dkTTYi1exK5iYVtBw0B';
+            this.dom.chaseURL.value = playlist;
+            this.dom.freezeURL.value = playlist;
+            this.save();
+            this.showToast('Sample playlist loaded!');
+        };
+
+        // Skip button with debounce and transition protection
+        this.dom.skipBtn.onclick = () => {
+            if (this._skipDebounce || this._inTransition || this.state === 'IDLE') return;
+            this._skipDebounce = true;
+            this.skipCurrentSong();
+            setTimeout(() => { this._skipDebounce = false; }, 1000);
+        };
+
+        this.setVolume(+this.dom.volSlider.value);
+
+        // Mobile: tap panel to toggle visibility during gameplay
+        this.dom.settings.addEventListener('click', (e) => {
+            if (!document.body.classList.contains('playing')) return;
+            // Don't toggle if clicking on interactive elements
+            if (e.target.closest('input, button, select, label')) return;
+            this.dom.settings.classList.toggle('panel-expanded');
+        });
+    },
+
+    setSource(src) {
+        // For playback, 'browse' uses youtube under the hood
+        this.source = src === 'browse' ? 'youtube' : src;
+        this._uiSource = src; // Track UI state separately
+        this.dom.browseTab.classList.toggle('active', src === 'browse');
+        this.dom.localTab.classList.toggle('active', src === 'local');
+        this.dom.ytTab.classList.toggle('active', src === 'youtube');
+        this.dom.browsePanel.classList.toggle('active', src === 'browse');
+        this.dom.localPanel.classList.toggle('active', src === 'local');
+        this.dom.ytPanel.classList.toggle('active', src === 'youtube');
+        this.save();
+    },
+
+    // ============================================
+    // BROWSE PLAYLISTS (YouTube Music API)
+    // ============================================
+    apiBase: '/api/playlists',
+
+    async browseMood(mood, btnElement) {
+        // Update UI state
+        this.dom.moodGrid.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+        if (btnElement) btnElement.classList.add('active');
+
+        this.dom.playlistResults.innerHTML = '<div class="browse-loading">Loading playlists...</div>';
+
+        try {
+            const response = await fetch(`${this.apiBase}?action=browse&mood=${encodeURIComponent(mood)}&limit=15`);
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            this.renderPlaylists(data.playlists || []);
+        } catch (error) {
+            this.dom.playlistResults.innerHTML = `<div class="browse-error">Failed to load: ${error.message}</div>`;
+        }
+    },
+
+    async searchPlaylists() {
+        const query = this.dom.playlistSearch.value.trim();
+        if (!query) return;
+
+        // Clear mood selection
+        this.dom.moodGrid.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+        this.dom.playlistResults.innerHTML = '<div class="browse-loading">Searching...</div>';
+
+        try {
+            const response = await fetch(`${this.apiBase}?action=search&q=${encodeURIComponent(query)}&limit=15`);
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            this.renderPlaylists(data.playlists || []);
+        } catch (error) {
+            this.dom.playlistResults.innerHTML = `<div class="browse-error">Search failed: ${error.message}</div>`;
+        }
+    },
+
+    renderPlaylists(playlists) {
+        if (!playlists.length) {
+            this.dom.playlistResults.innerHTML = '<div class="help-text" style="text-align: center; padding: 20px;">No playlists found</div>';
+            return;
+        }
+
+        this.dom.playlistResults.innerHTML = playlists.map(pl => `
+            <div class="playlist-card" data-url="${this.escapeHtml(pl.url || '')}" data-title="${this.escapeHtml(pl.title)}">
+                <img class="playlist-thumb" src="${this.sanitizeUrl(pl.thumbnail)}" alt="" onerror="this.style.display='none'">
+                <div class="playlist-info">
+                    <div class="playlist-title">${this.escapeHtml(pl.title)}</div>
+                    <div class="playlist-desc">${this.escapeHtml(pl.description || '')}</div>
+                </div>
+                <div class="playlist-actions">
+                    <button class="playlist-use-btn chase" data-type="chase">Play</button>
+                    <button class="playlist-use-btn freeze" data-type="freeze">Pose</button>
+                </div>
+            </div>
+        `).join('');
+
+        // Bind click handlers
+        this.dom.playlistResults.querySelectorAll('.playlist-use-btn').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const card = btn.closest('.playlist-card');
+                const url = card.dataset.url;
+                const title = card.dataset.title;
+                const type = btn.dataset.type;
+                this.selectBrowsedPlaylist(type, url, title);
+            };
+        });
+    },
+
+    selectBrowsedPlaylist(type, url, title) {
+        // Convert YouTube Music URL to regular YouTube URL if needed
+        const ytUrl = url.replace('music.youtube.com', 'www.youtube.com');
+
+        // Update the URL input
+        this.dom[`${type}URL`].value = ytUrl;
+
+        // Update the selected display
+        this.dom[`selected${type.charAt(0).toUpperCase() + type.slice(1)}`].textContent = title;
+
+        this.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)}: ${title}`);
+        this.save();
+    },
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+
+    sanitizeUrl(url) {
+        if (!url) return '';
+        try {
+            const parsed = new URL(url);
+            // Only allow http/https protocols for images
+            if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+                return url;
+            }
+        } catch (e) {
+            // Invalid URL
+        }
+        return '';
+    },
+
+    setVolume(v) {
+        const vol = v / 100;
+        this._pendingVolume = v; // Store for YouTube players not yet ready
+        this.dom.chaseAudio.volume = vol;
+        this.dom.freezeAudio.volume = vol;
+        ['chase', 'freeze'].forEach(type => {
+            const player = this.getPlayer(type);
+            if (player && this.isReady(type)) {
+                this.safeExec(() => player.setVolume(v));
+            }
+        });
+    },
+
+    // Apply pending volume when player becomes ready
+    applyPendingVolume(type) {
+        if (this._pendingVolume !== undefined) {
+            const player = this.getPlayer(type);
+            if (player) {
+                this.safeExec(() => player.setVolume(this._pendingVolume));
+            }
+        }
+    },
+
+    // ============================================
+    // SETTINGS
+    // ============================================
+    _saveImmediate() {
+        const data = {
+            length: this.dom.lengthSlider.value,
+            repeat: this.dom.repeatSlider.value,
+            timing: this.dom.timingSlider.value,
+            volume: this.dom.volSlider.value,
+            uiSource: this._uiSource || this.source,
+            chaseURL: this.dom.chaseURL.value,
+            freezeURL: this.dom.freezeURL.value,
+            selectedChaseTitle: this.dom.selectedChase.textContent,
+            selectedFreezeTitle: this.dom.selectedFreeze.textContent,
+            showTimer: this.dom.showTimer.checked,
+            skipIntro: this.dom.skipIntro.checked,
+            shuffle: this.dom.shuffle.checked,
+            muteVoice: this.dom.muteVoice.checked
+        };
+        this.safeExec(() => localStorage.setItem('chasefreeze_v7', JSON.stringify(data)));
+    },
+
+    // Debounced save to prevent excessive localStorage writes
+    save() {
+        if (!this._debouncedSave) {
+            this._debouncedSave = debounce(() => this._saveImmediate(), TIMEOUTS.SAVE_DEBOUNCE);
+        }
+        this._debouncedSave();
+    },
+
+    load() {
+        this.safeExec(() => {
+            // Try new format first, fall back to old
+            let data = JSON.parse(localStorage.getItem('chasefreeze_v7'));
+            if (!data) {
+                data = JSON.parse(localStorage.getItem('chasefreeze_v6'));
+            }
+            if (!data) return;
+
+            if (data.length && this.LENGTH_PRESETS[data.length]) {
+                this.dom.lengthSlider.value = data.length;
+                this.dom.lengthValue.textContent = this.LENGTH_PRESETS[data.length].label;
+                this.dom.lengthDesc.textContent = this.LENGTH_PRESETS[data.length].desc;
+            }
+            if (data.repeat && this.REPEAT_CHANCE[data.repeat]) {
+                this.dom.repeatSlider.value = data.repeat;
+                this.dom.repeatValue.textContent = this.REPEAT_CHANCE[data.repeat].label;
+                this.dom.repeatDesc.textContent = this.REPEAT_CHANCE[data.repeat].desc;
+            }
+            if (data.timing && this.TIMING_VARIANCE[data.timing]) {
+                this.dom.timingSlider.value = data.timing;
+                this.dom.timingValue.textContent = this.TIMING_VARIANCE[data.timing].label;
+                this.dom.timingDesc.textContent = this.TIMING_VARIANCE[data.timing].desc;
+            }
+            if (data.volume) {
+                this.dom.volSlider.value = data.volume;
+                this.dom.volValue.textContent = data.volume + '%';
+            }
+            // Handle both old 'source' and new 'uiSource' formats
+            const srcToLoad = data.uiSource || data.source;
+            if (srcToLoad) this.setSource(srcToLoad);
+            if (data.chaseURL) this.dom.chaseURL.value = data.chaseURL;
+            if (data.freezeURL) this.dom.freezeURL.value = data.freezeURL;
+            // Restore selected playlist titles for browse panel
+            if (data.selectedChaseTitle && data.selectedChaseTitle !== 'Not selected') {
+                this.dom.selectedChase.textContent = data.selectedChaseTitle;
+            }
+            if (data.selectedFreezeTitle && data.selectedFreezeTitle !== 'Not selected') {
+                this.dom.selectedFreeze.textContent = data.selectedFreezeTitle;
+            }
+            if (data.showTimer !== undefined) this.dom.showTimer.checked = data.showTimer;
+            if (data.skipIntro !== undefined) this.dom.skipIntro.checked = data.skipIntro;
+            if (data.shuffle !== undefined) this.dom.shuffle.checked = data.shuffle;
+            if (data.muteVoice !== undefined) this.dom.muteVoice.checked = data.muteVoice;
+        });
+    },
+
+    // ============================================
+    // LOCAL FILES
+    // ============================================
+    loadFiles(e, type) {
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
+
+        this[`${type}Tracks`] = files;
+        this.setIdx(type, 0);
+        this.dom[`${type}Name`].textContent = files.length + ' song(s)';
+
+        if (this.dom.shuffle.checked) this.shuffleList(type);
+        this.loadTrack(type);
+    },
+
+    shuffleList(type) {
+        const list = this.getTracks(type);
+        // Guard: need at least 2 items to shuffle
+        if (!list || list.length < 2) return;
+        for (let i = list.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [list[i], list[j]] = [list[j], list[i]];
+        }
+    },
+
+    loadTrack(type) {
+        const player = this.getAudio(type);
+        const list = this.getTracks(type);
+        const idx = this.getIdx(type);
+        if (!list.length) return;
+
+        if (player.src && player.src.startsWith('blob:')) {
+            URL.revokeObjectURL(player.src);
+        }
+        player.src = URL.createObjectURL(list[idx]);
+        player.load();
+    },
+
+    nextTrack(type) {
+        const tracks = this.getTracks(type);
+        // Guard: prevent division by zero or empty playlist issues
+        if (!tracks || tracks.length === 0) {
+            return;
+        }
+        const newIdx = (this.getIdx(type) + 1) % tracks.length;
+        this.setIdx(type, newIdx);
+
+        if (newIdx === 0 && this.dom.shuffle.checked) this.shuffleList(type);
+        this.loadTrack(type);
+
+        const isActive = (type === 'chase' && this.state === 'CHASE') ||
+                         (type === 'freeze' && this.state === 'FREEZE');
+        if (isActive) this.playAudio(this.getAudio(type));
+    },
+
+    playAudio(player) {
+        const shouldSkip = this.dom.skipIntro.checked;
+        const targetVol = +this.dom.volSlider.value / 100;
+
+        if (shouldSkip) {
+            player.volume = 0;
+
+            const doSkipAndPlay = () => {
+                if (player.duration > AUDIO.SKIP_SECONDS) {
+                    player.currentTime = AUDIO.SKIP_SECONDS;
+                    const onSeeked = () => {
+                        player.removeEventListener('seeked', onSeeked);
+                        player.volume = targetVol;
+                    };
+                    player.addEventListener('seeked', onSeeked);
+
+                    player.play().catch(e => {
+                        player.removeEventListener('seeked', onSeeked);
+                        player.volume = targetVol;
+                        if (e.name === 'NotAllowedError') this.showToast('Tap screen to enable audio');
+                    });
+                } else {
+                    // Song too short, play normally
+                    player.volume = targetVol;
+                    player.play().catch(e => {
+                        if (e.name === 'NotAllowedError') this.showToast('Tap screen to enable audio');
+                    });
+                }
+            };
+
+            // Need metadata for duration
+            if (player.readyState >= 1 && !isNaN(player.duration)) {
+                doSkipAndPlay();
+            } else {
+                const onMeta = () => {
+                    player.removeEventListener('loadedmetadata', onMeta);
+                    doSkipAndPlay();
+                };
+                player.addEventListener('loadedmetadata', onMeta);
+                // Trigger load if not already loading
+                if (player.readyState === 0) {
+                    player.load();
+                }
+            }
+        } else {
+            player.play().catch(e => {
+                if (e.name === 'NotAllowedError') this.showToast('Tap screen to enable audio');
+            });
+        }
+    },
+
+    // ============================================
+    // YOUTUBE (DRY - consolidated)
+    // ============================================
+    parseYT(url) {
+        if (!url) return null;
+        url = url.trim();
+
+        const vidMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/) ||
+                         url.match(/^([a-zA-Z0-9_-]{11})$/);
+        const videoId = vidMatch ? vidMatch[1] : null;
+
+        const plMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+        if (plMatch) {
+            const listId = plMatch[1];
+            // Reject only personal "Mix" playlists (RD + video ID pattern) and "None"
+            // Allow RDCLAK (YouTube Music curated) playlists
+            if (listId === 'None' || listId === 'null' || listId === 'undefined') {
+                return videoId ? { type: 'video', id: videoId } : null;
+            }
+            if (listId.startsWith('RD') && !listId.startsWith('RDCLAK') && !listId.startsWith('RDAMPL')) {
+                // Personal mix based on video - use video only
+                return videoId ? { type: 'video', id: videoId } : null;
+            }
+            return { type: 'playlist', id: listId, videoId: videoId };
+        }
+
+        return videoId ? { type: 'video', id: videoId } : null;
+    },
+
+    async initYT() {
+        return new Promise(resolve => {
+            const timeout = setTimeout(() => {
+                this.showToast('YouTube timeout - check internet connection');
+                resolve(false);
+            }, TIMEOUTS.YT_INIT);
+
+            const create = () => {
+                clearTimeout(timeout);
+                const result = this.safeExec(() => this.createYTPlayers(), null);
+                resolve(result ? true : false);
+            };
+
+            if (ytReady) {
+                create();
+            } else {
+                ytPending = create;
+            }
+        });
+    },
+
+    createSinglePlayer(type, parsed) {
+        const wrapper = this.dom[`${type}Wrapper`];
+        if (!parsed) {
+            wrapper.classList.add('hidden');
+            return;
+        }
+
+        wrapper.classList.remove('hidden');
+        const vars = {
+            autoplay: 0,
+            controls: 0,
+            modestbranding: 1,
+            rel: 0,
+            enablejsapi: 1,
+            playsinline: 1,
+            origin: window.location.origin
+        };
+
+        if (parsed.type === 'playlist') {
+            vars.listType = 'playlist';
+            vars.list = parsed.id;
+        }
+
+        // Build player config - only include videoId if it's not null
+        const playerConfig = {
+            width: '100%', height: '100%',
+            playerVars: vars,
+            events: {
+                onReady: e => {
+                    this[`${type}Ready`] = true;
+                    this.applyPendingVolume(type);
+                },
+                onStateChange: e => {
+                    if (e.data === YT.PlayerState.ENDED && parsed.type === 'video') {
+                        e.target.seekTo(0);
+                        if (this.state === type.toUpperCase()) {
+                            e.target.unMute();
+                            e.target.playVideo();
+                        }
+                    }
+                },
+                onError: e => {
+                    this.showToast(`${type}: ${YT_ERRORS[e.data] || 'Error'} - skipping`);
+                    // Auto-skip to next video on error
+                    setTimeout(() => {
+                        if (this.state !== 'IDLE') {
+                            this.skipYT(type);
+                        }
+                    }, 500);
+                }
+            }
+        };
+
+        // Only add videoId if we have one (for videos or playlists with a starting video)
+        const videoId = parsed.type === 'video' ? parsed.id : parsed.videoId;
+        if (videoId) {
+            playerConfig.videoId = videoId;
+        }
+
+        this[`${type}Player`] = new YT.Player(`${type}YT`, playerConfig);
+    },
+
+    createYTPlayers() {
+        const chaseParsed = this.parseYT(this.dom.chaseURL.value);
+        const freezeParsed = this.parseYT(this.dom.freezeURL.value);
+        this.createSinglePlayer('chase', chaseParsed);
+        this.createSinglePlayer('freeze', freezeParsed);
+        return true;
+    },
+
+    waitForYTReady(timeout = 10000) {
+        return new Promise(resolve => {
+            const start = Date.now();
+            const needChase = !!this.dom.chaseURL.value.trim();
+            const needFreeze = !!this.dom.freezeURL.value.trim();
+
+            const check = () => {
+                const chaseReady = this.chaseReady;
+                const freezeReady = this.freezeReady;
+                const chaseOK = !needChase || chaseReady;
+                const freezeOK = !needFreeze || freezeReady;
+
+                if (chaseOK && freezeOK) {
+                    resolve(true);
+                    return;
+                }
+
+                if (Date.now() - start > timeout) {
+                    resolve(chaseReady || freezeReady);
+                    return;
+                }
+
+                setTimeout(check, 200);
+            };
+
+            check();
+        });
+    },
+
+    destroyYT() {
+        ['chase', 'freeze'].forEach(type => {
+            const player = this.getPlayer(type);
+            if (player) this.safeExec(() => player.destroy());
+            this[`${type}Player`] = null;
+            this[`${type}Ready`] = false;
+            this.dom[`${type}Wrapper`].innerHTML = `<div id="${type}YT"></div><span class="yt-label">${type.charAt(0).toUpperCase() + type.slice(1)}</span>`;
+        });
+    },
+
+    shuffleToRandom(player) {
+        if (!this.dom.shuffle.checked) return false;
+        const playlist = this.safeExec(() => player.getPlaylist());
+        if (Array.isArray(playlist) && playlist.length > 1) {
+            player.playVideoAt(Math.floor(Math.random() * playlist.length));
+            return true;
+        }
+        return false;
+    },
+
+    playYT(type) {
+        const player = this.getPlayer(type);
+        if (!player || !this.isReady(type)) return;
+
+        this.safeExec(() => {
+            player.unMute();
+            if (!this.shuffleToRandom(player)) player.playVideo();
+            if (this.dom.skipIntro.checked) {
+                setTimeout(() => this.seekTo(player, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
+            }
+        });
+    },
+
+    pauseYT(type) {
+        const player = this.getPlayer(type);
+        if (player) this.safeExec(() => player.pauseVideo());
+    },
+
+    seekTo(player, seconds) {
+        this.safeExec(() => {
+            if (player.getDuration() > seconds) player.seekTo(seconds, true);
+        });
+    },
+
+    skipYT(type) {
+        const player = this.getPlayer(type);
+        if (!player || !this.isReady(type)) return;
+
+        this.safeExec(() => {
+            const playlist = this.safeExec(() => player.getPlaylist());
+            const hasMultipleTracks = Array.isArray(playlist) && playlist.length > 1;
+
+            if (hasMultipleTracks) {
+                if (!this.shuffleToRandom(player)) player.nextVideo();
+                if (this.dom.skipIntro.checked) {
+                    setTimeout(() => this.seekTo(player, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
+                }
+            } else {
+                // For single video, seek then play
+                if (this.dom.skipIntro.checked) {
+                    player.seekTo(AUDIO.SKIP_SECONDS, true);
+                } else {
+                    player.seekTo(0, true);
+                }
+                player.unMute();
+                player.playVideo();
+            }
+        });
+    },
+
+    skipCurrentSong() {
+        // Guard: don't skip during IDLE or phase transitions
+        if (this.state === 'IDLE' || this._inTransition) {
+            return;
+        }
+        const type = this.state === 'CHASE' ? 'chase' : 'freeze';
+        this.source === 'youtube' ? this.skipYT(type) : this.nextTrack(type);
+        this.showToast('Skipped!');
+    },
+
+    // ============================================
+    // MEDIA SESSION & WAKE LOCK
+    // ============================================
+    setupMedia() {
+        if (!('mediaSession' in navigator)) return;
+        navigator.mediaSession.metadata = new MediaMetadata({ title: 'Play · Pose', artist: 'Party Game' });
+        navigator.mediaSession.setActionHandler('play', () => { if (this.state === 'IDLE') this.start(); });
+        navigator.mediaSession.setActionHandler('pause', () => { if (this.state !== 'IDLE') this.stop(); });
+    },
+
+    async requestWake() {
+        if (!('wakeLock' in navigator)) return;
+        this.safeExec(async () => { this.wakeLock = await navigator.wakeLock.request('screen'); });
+    },
+
+    releaseWake() {
+        if (this.wakeLock) { this.safeExec(() => this.wakeLock.release()); this.wakeLock = null; }
+    },
+
+    resumeAudio() {
+        if (this.state === 'IDLE') return;
+        const type = this.state === 'CHASE' ? 'chase' : 'freeze';
+        const otherType = type === 'chase' ? 'freeze' : 'chase';
+
+        if (this.source === 'youtube') {
+            // Just resume playback - don't shuffle or seek
+            this.pauseYT(otherType);
+            const player = this.getPlayer(type);
+            if (player && this.isReady(type)) {
+                this.safeExec(() => {
+                    player.unMute();
+                    player.playVideo();
+                });
+            }
+        } else {
+            // Just resume - don't trigger skip logic
+            this.getAudio(otherType).pause();
+            const audio = this.getAudio(type);
+            if (audio.paused) {
+                audio.play().catch(() => {});
+            }
+        }
+    },
+
+    // ============================================
+    // GAME LOGIC
+    // ============================================
+    toggle() {
+        // Prevent rapid toggling during transitions
+        if (this._inTransition) return;
+        this.state === 'IDLE' ? this.start() : this.stop();
+    },
+
+    async start() {
+        this.dom.startBtn.disabled = true;
+        await this.requestWake();
+
+        if (this.source === 'youtube') {
+            // Check if URLs are set
+            const chaseUrl = this.dom.chaseURL.value.trim();
+            const freezeUrl = this.dom.freezeURL.value.trim();
+
+            if (!chaseUrl && !freezeUrl) {
+                this.showToast('Select playlists for Play and Pose first');
+                this.dom.startBtn.disabled = false;
+                return;
+            }
+
+            this.destroyYT();
+            if (!await this.initYT()) {
+                this.dom.startBtn.disabled = false;
+                return;
+            }
+            this.dom.ytBackground.classList.add('visible');
+            this.dom.videoOverlay.classList.add('visible');
+            this.dom.chaseWrapper.classList.remove('hidden');
+            this.dom.freezeWrapper.classList.add('hidden');
+
+            const ready = await this.waitForYTReady(10000);
+            if (!ready) {
+                this.showToast('YouTube players failed to load');
+                this.dom.startBtn.disabled = false;
+                this.stop();
+                return;
+            }
+        } else {
+            if (this.dom.shuffle.checked) {
+                if (this.chaseTracks.length) this.shuffleList('chase');
+                if (this.freezeTracks.length) this.shuffleList('freeze');
+            }
+            this.chaseIdx = this.freezeIdx = 0;
+            if (this.chaseTracks.length) this.loadTrack('chase');
+            if (this.freezeTracks.length) this.loadTrack('freeze');
+        }
+
+        this.dom.startBtn.textContent = 'Stop';
+        this.dom.startBtn.disabled = false;
+        // Only disable music source inputs - keep sliders and toggles enabled
+        this.disableMusicInputs(true);
+        this.dom.skipControls.classList.add('visible');
+        document.body.classList.add('playing');
+
+        this.setState('CHASE');
+    },
+
+    stop() {
+        this.clearTimers();
+        this.releaseWake();
+        this._inTransition = false;
+
+        // Clear any active intervals
+        if (this._crossfadeInterval) {
+            clearInterval(this._crossfadeInterval);
+            this._crossfadeInterval = null;
+        }
+        if (this._ytCrossfadeInterval) {
+            clearInterval(this._ytCrossfadeInterval);
+            this._ytCrossfadeInterval = null;
+        }
+        if (this._ytPollInterval) {
+            clearInterval(this._ytPollInterval);
+            this._ytPollInterval = null;
+        }
+
+        // Revoke blob URLs to prevent memory leaks
+        ['chase', 'freeze'].forEach(type => {
+            const audio = this.getAudio(type);
+            if (audio.src && audio.src.startsWith('blob:')) {
+                URL.revokeObjectURL(audio.src);
+            }
+        });
+
+        // Reset volumes and stop audio
+        const vol = +this.dom.volSlider.value / 100;
+        this.dom.chaseAudio.volume = vol;
+        this.dom.freezeAudio.volume = vol;
+        this.dom.chaseAudio.pause();
+        this.dom.freezeAudio.pause();
+        this.pauseYT('chase');
+        this.pauseYT('freeze');
+        this.dom.ytBackground.classList.remove('visible');
+        this.dom.videoOverlay.classList.remove('visible');
+
+        this.state = 'IDLE';
+        this.dom.command.textContent = 'Play · Pose';
+        this.dom.timer.textContent = '';
+        this.dom.message.textContent = 'Set up your music and press Start';
+        document.body.style.background = 'var(--idle)';
+        this.dom.startBtn.textContent = 'Start Game';
+        // Re-enable music source inputs
+        this.disableMusicInputs(false);
+        this.dom.skipControls.classList.remove('visible');
+        document.body.classList.remove('playing');
+        this.dom.settings.classList.remove('panel-expanded');
+    },
+
+    // Disable only music source inputs, keep sliders/toggles enabled during gameplay
+    disableMusicInputs(disabled) {
+        // Music source tabs
+        this.dom.browseTab.disabled = disabled;
+        this.dom.localTab.disabled = disabled;
+        this.dom.ytTab.disabled = disabled;
+        // File inputs
+        this.dom.chaseFiles.disabled = disabled;
+        this.dom.freezeFiles.disabled = disabled;
+        // YouTube inputs
+        this.dom.chaseURL.disabled = disabled;
+        this.dom.freezeURL.disabled = disabled;
+        this.dom.sampleBtn.disabled = disabled;
+        // Browse inputs
+        this.dom.playlistSearch.disabled = disabled;
+        this.dom.searchBtn.disabled = disabled;
+        this.dom.moodGrid.querySelectorAll('.mood-btn').forEach(btn => {
+            btn.disabled = disabled;
+        });
+    },
+
+    setState(newState) {
+        const changed = this.state !== newState;
+        this.state = newState;
+        this.clearTimers();
+
+        // Lock during transition to prevent race conditions
+        this._inTransition = true;
+        setTimeout(() => { this._inTransition = false; }, TIMEOUTS.PHASE_TRANSITION_LOCK);
+
+        const isChase = newState === 'CHASE';
+
+        if (changed) {
+            this.dom.command.textContent = isChase ? 'PLAY!' : 'POSE!';
+            this.dom.message.textContent = isChase ? 'Go go go!' : 'Hold still!';
+            document.body.style.background = isChase ? 'var(--chase)' : 'var(--freeze)';
+            this.speak(isChase ? 'Play!' : 'Pose!');
+
+            if (this.source === 'youtube') {
+                this.crossfadeYT(isChase ? 'chase' : 'freeze', isChase ? 'freeze' : 'chase');
+            } else {
+                this.crossfadeLocal(
+                    this.getAudio(isChase ? 'chase' : 'freeze'),
+                    this.getAudio(isChase ? 'freeze' : 'chase')
+                );
+            }
+        }
+
+        this.scheduleNext(isChase);
+    },
+
+    // Smooth crossfade for YouTube with overlapping volume ramp
+    crossfadeYT(newType, oldType) {
+        const newPlayer = this.getPlayer(newType);
+        const oldPlayer = this.getPlayer(oldType);
+        const targetVol = +this.dom.volSlider.value;
+
+        if (!newPlayer || !this.isReady(newType)) {
+            return;
+        }
+
+        // Switch video background: show new, hide old
+        const newWrapper = this.dom[newType + 'Wrapper'];
+        const oldWrapper = this.dom[oldType + 'Wrapper'];
+        if (newWrapper) newWrapper.classList.remove('hidden');
+        if (oldWrapper) oldWrapper.classList.add('hidden');
+
+        // Clear any existing crossfade/poll
+        if (this._ytCrossfadeInterval) {
+            clearInterval(this._ytCrossfadeInterval);
+            this._ytCrossfadeInterval = null;
+        }
+        if (this._ytPollInterval) {
+            clearInterval(this._ytPollInterval);
+            this._ytPollInterval = null;
+        }
+
+        const startCrossfade = () => {
+            const oldStartVol = oldPlayer && this.isReady(oldType)
+                ? (this.safeExec(() => oldPlayer.getVolume()) ?? targetVol)
+                : targetVol;
+
+            let step = 0;
+            this._ytCrossfadeInterval = setInterval(() => {
+                step++;
+                const progress = step / CROSSFADE.STEPS;
+
+                // Fade out old player
+                if (oldPlayer && this.isReady(oldType)) {
+                    const oldVol = Math.round(oldStartVol * (1 - progress));
+                    this.safeExec(() => oldPlayer.setVolume(Math.max(0, oldVol)));
+                }
+
+                // Fade in new player
+                const newVol = Math.round(targetVol * progress);
+                this.safeExec(() => newPlayer.setVolume(newVol));
+
+                // Complete crossfade
+                if (step >= CROSSFADE.STEPS) {
+                    clearInterval(this._ytCrossfadeInterval);
+                    this._ytCrossfadeInterval = null;
+                    if (oldPlayer) {
+                        this.safeExec(() => {
+                            oldPlayer.pauseVideo();
+                            oldPlayer.setVolume(targetVol);
+                        });
+                    }
+                    this.safeExec(() => newPlayer.setVolume(targetVol));
+                }
+            }, CROSSFADE.INTERVAL);
+        };
+
+        this.safeExec(() => {
+            newPlayer.unMute();
+            newPlayer.setVolume(0);
+
+            const shuffled = this.shuffleToRandom(newPlayer);
+            if (!shuffled) {
+                newPlayer.playVideo();
+            }
+
+            if (this.dom.skipIntro.checked) {
+                let attempts = 0;
+                const maxAttempts = 50;
+                this._ytPollInterval = setInterval(() => {
+                    attempts++;
+                    const duration = this.safeExec(() => newPlayer.getDuration()) || 0;
+                    const state = this.safeExec(() => newPlayer.getPlayerState());
+
+                    if ((state === 1 || state === 3) && duration > AUDIO.SKIP_SECONDS) {
+                        clearInterval(this._ytPollInterval);
+                        this._ytPollInterval = null;
+                        this.safeExec(() => newPlayer.seekTo(AUDIO.SKIP_SECONDS, true));
+                        setTimeout(() => startCrossfade(), 150);
+                    } else if (attempts >= maxAttempts) {
+                        clearInterval(this._ytPollInterval);
+                        this._ytPollInterval = null;
+                        startCrossfade();
+                    }
+                }, 100);
+            } else {
+                startCrossfade();
+            }
+        });
+    },
+
+    // Smooth crossfade with overlapping volume ramp
+    crossfadeLocal(newAudio, oldAudio) {
+        const targetVol = +this.dom.volSlider.value / 100;
+        const shouldSkip = this.dom.skipIntro.checked;
+
+        // Clear any existing crossfade
+        if (this._crossfadeInterval) {
+            clearInterval(this._crossfadeInterval);
+            this._crossfadeInterval = null;
+        }
+
+        // Ensure old audio is at proper volume for fade out
+        const oldStartVol = oldAudio ? Math.max(oldAudio.volume, targetVol * 0.5) : targetVol;
+        if (oldAudio) oldAudio.volume = oldStartVol;
+
+        // Start new audio at volume 0
+        newAudio.volume = 0;
+
+        // Track when we're at correct position (for skip functionality)
+        let atCorrectPosition = !shouldSkip;
+
+        // Function to start playing (after seek if needed)
+        const startPlayback = () => {
+            newAudio.play().catch(e => {
+                if (e.name === 'NotAllowedError') this.showToast('Tap screen to enable audio');
+            });
+        };
+
+        const doSeekThenPlay = () => {
+            if (shouldSkip && newAudio.duration > AUDIO.SKIP_SECONDS) {
+                newAudio.currentTime = AUDIO.SKIP_SECONDS;
+                const onSeeked = () => {
+                    newAudio.removeEventListener('seeked', onSeeked);
+                    atCorrectPosition = true;
+                    startPlayback();
+                };
+                newAudio.addEventListener('seeked', onSeeked);
+            } else {
+                atCorrectPosition = true;
+                startPlayback();
+            }
+        };
+
+        // Wait for metadata if needed
+        if (newAudio.readyState >= 1 && !isNaN(newAudio.duration)) {
+            doSeekThenPlay();
+        } else {
+            const onMeta = () => {
+                newAudio.removeEventListener('loadedmetadata', onMeta);
+                doSeekThenPlay();
+            };
+            newAudio.addEventListener('loadedmetadata', onMeta);
+            if (newAudio.readyState === 0) {
+                newAudio.load();
+            }
+        }
+
+        // Crossfade: fade out old, fade in new (but new stays muted until at correct position)
+        let step = 0;
+        this._crossfadeInterval = setInterval(() => {
+            step++;
+            const progress = step / CROSSFADE.STEPS;
+
+            // Fade out old audio
+            if (oldAudio && !oldAudio.paused) {
+                oldAudio.volume = Math.max(0, oldStartVol * (1 - progress));
+            }
+
+            // Only fade in new audio when at correct position
+            if (atCorrectPosition) {
+                newAudio.volume = Math.min(targetVol, targetVol * progress);
+            }
+
+            // Complete crossfade
+            if (step >= CROSSFADE.STEPS) {
+                clearInterval(this._crossfadeInterval);
+                this._crossfadeInterval = null;
+                if (oldAudio) {
+                    oldAudio.pause();
+                    oldAudio.volume = targetVol;
+                }
+                if (atCorrectPosition) {
+                    newAudio.volume = targetVol;
+                }
+            }
+        }, CROSSFADE.INTERVAL);
+    },
+
+    scheduleNext(isChase) {
+        const length = this.LENGTH_PRESETS[this.dom.lengthSlider.value];
+        const repeat = this.REPEAT_CHANCE[this.dom.repeatSlider.value];
+        const timing = this.TIMING_VARIANCE[this.dom.timingSlider.value];
+
+        const variance = length.base * timing.variance;
+        const duration = Math.max(2, Math.round(length.base + (Math.random() - 0.5) * 2 * variance));
+
+        this.remaining = duration;
+
+        if (this.dom.showTimer.checked) {
+            this.dom.timer.textContent = duration + 's';
+            this.countdown = setInterval(() => {
+                this.remaining--;
+                this.dom.timer.textContent = Math.max(0, this.remaining) + 's';
+            }, 1000);
+        }
+
+        this.timer = setTimeout(() => {
+            // Use repeat chance to determine if phase changes or repeats
+            const nextPhase = isChase ? 'FREEZE' : 'CHASE';
+            const currentPhase = isChase ? 'CHASE' : 'FREEZE';
+            const willRepeat = Math.random() < repeat.chance;
+            this.setState(willRepeat ? currentPhase : nextPhase);
+        }, duration * 1000);
+    },
+
+    clearTimers() {
+        if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+        if (this.countdown) { clearInterval(this.countdown); this.countdown = null; }
+        this.dom.timer.textContent = '';
+    },
+
+    // Handle Show Timer toggle change mid-game
+    handleShowTimerChange() {
+        if (this.state === 'IDLE') return;
+
+        if (this.dom.showTimer.checked) {
+            // Turn ON: start countdown with remaining time
+            if (!this.countdown && this.remaining > 0) {
+                this.dom.timer.textContent = this.remaining + 's';
+                this.countdown = setInterval(() => {
+                    this.remaining--;
+                    this.dom.timer.textContent = Math.max(0, this.remaining) + 's';
+                }, 1000);
+            }
+        } else {
+            // Turn OFF: stop countdown and hide timer
+            if (this.countdown) {
+                clearInterval(this.countdown);
+                this.countdown = null;
+            }
+            this.dom.timer.textContent = '';
+        }
+    },
+
+    speak(text) {
+        if (this.dom.muteVoice.checked) return;
+        this.safeExec(() => {
+            speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.rate = 1.1;
+            u.pitch = 1.05;
+            speechSynthesis.speak(u);
+        });
+    },
+
+    showToast(msg) {
+        this.dom.toast.textContent = msg;
+        this.dom.toast.classList.add('visible');
+        setTimeout(() => this.dom.toast.classList.remove('visible'), TIMEOUTS.TOAST);
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => Game.init());
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>

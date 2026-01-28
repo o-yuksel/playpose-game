@@ -1,0 +1,23 @@
+{
+  "name": "chase-freeze-game",
+  "version": "1.0.0",
+  "description": "Chase & Freeze party game",
+  "main": "index.html",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "testMatch": ["**/__tests__/**/*.test.js"],
+    "verbose": true
+  },
+  "keywords": ["game", "party"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  }
+}
