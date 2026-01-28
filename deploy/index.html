@@ -587,11 +587,12 @@
             top: -150px;
             left: 0;
             width: 100%;
+            height: calc(100vh + 300px);
             height: calc(100lvh + 300px);
             z-index: -2;
             overflow: hidden;
             opacity: 0;
-            transition: opacity 0.8s ease;
+            transition: opacity 0.4s ease;
             background: #000;
         }
         .yt-background.visible { opacity: 1; }
@@ -619,11 +620,12 @@
             top: -150px;
             left: 0;
             width: 100%;
+            height: calc(100vh + 300px);
             height: calc(100lvh + 300px);
             background: rgba(0, 0, 0, 0.4);
             z-index: -1;
             opacity: 0;
-            transition: opacity 0.8s ease;
+            transition: opacity 0.4s ease;
         }
         .video-overlay.visible { opacity: 1; }
 
@@ -964,8 +966,8 @@ const TIMEOUTS = {
     YT_INIT: 8000,
     TOAST: 3000,
     SAVE_DEBOUNCE: 300,
-    PHASE_TRANSITION_LOCK: 500,  // Increased to cover crossfade duration
-    YT_SEEK_DELAY: 300  // Wait for YouTube to start buffering before seeking
+    PHASE_TRANSITION_LOCK: 250,  // Brief lock to prevent double-triggers
+    YT_SEEK_DELAY: 200  // Wait for YouTube to start buffering before seeking
 };
 
 const CROSSFADE = {
@@ -2189,7 +2191,7 @@ const Game = {
 
             if (this.dom.skipIntro.checked) {
                 let attempts = 0;
-                const maxAttempts = 30; // Reduced from 50 for faster response
+                const maxAttempts = 15; // Quick timeout for snappy transitions
                 this._ytPollInterval = setInterval(() => {
                     attempts++;
                     const duration = this.safeExec(() => newPlayer.getDuration()) || 0;
@@ -2199,8 +2201,7 @@ const Game = {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
                         this.safeExec(() => newPlayer.seekTo(AUDIO.SKIP_SECONDS, true));
-                        // Start crossfade immediately (reduced delay)
-                        setTimeout(() => startCrossfade(), 50);
+                        startCrossfade(); // No delay
                     } else if (attempts >= maxAttempts) {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
