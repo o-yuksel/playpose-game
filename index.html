@@ -138,11 +138,19 @@
             pointer-events: auto;
             transition: transform 0.3s ease, opacity 0.3s ease, background 0.4s ease;
         }
-        /* Mobile: swipe down to show, swipe up to hide */
+        /* Panel hidden - slides down off screen */
         body.playing .panel.scroll-hidden {
             transform: translateY(100%);
             opacity: 0;
             pointer-events: none;
+        }
+        /* Panel visible - fully opaque, slides up from bottom */
+        body.playing .panel.scroll-visible {
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            opacity: 1;
+            transform: translateY(0);
         }
         /* Desktop: hover to reveal */
         @media (hover: hover) {
@@ -1196,12 +1204,14 @@ const Game = {
             // Need at least 30px swipe to trigger
             if (Math.abs(swipeDistance) < 30) return;
 
-            // Swipe DOWN (finger moves down, negative value) = show panel
-            // Swipe UP (finger moves up, positive value) = hide panel
-            if (swipeDistance < -30) {
+            // Swipe UP (finger moves up, positive value) = show panel from bottom
+            // Swipe DOWN (finger moves down, negative value) = hide panel
+            if (swipeDistance > 30) {
                 this.dom.settings.classList.remove('scroll-hidden');
-            } else if (swipeDistance > 30) {
+                this.dom.settings.classList.add('scroll-visible');
+            } else if (swipeDistance < -30) {
                 this.dom.settings.classList.add('scroll-hidden');
+                this.dom.settings.classList.remove('scroll-visible');
             }
         }, { passive: true });
     },
@@ -2004,6 +2014,7 @@ const Game = {
         document.body.classList.remove('playing');
         this.dom.settings.classList.remove('panel-expanded');
         this.dom.settings.classList.remove('scroll-hidden');
+        this.dom.settings.classList.remove('scroll-visible');
     },
 
     // Disable only music source inputs, keep sliders/toggles enabled during gameplay
