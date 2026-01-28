@@ -967,7 +967,8 @@ const TIMEOUTS = {
     TOAST: 3000,
     SAVE_DEBOUNCE: 300,
     PHASE_TRANSITION_LOCK: 250,  // Brief lock to prevent double-triggers
-    YT_SEEK_DELAY: 200  // Wait for YouTube to start buffering before seeking
+    YT_SEEK_DELAY: 200,  // Wait for YouTube to start buffering before seeking
+    METADATA_LOAD: 5000  // Max wait for audio metadata before fallback
 };
 
 const CROSSFADE = {
@@ -1179,6 +1180,20 @@ const Game = {
         // Audio ended
         this.dom.chaseAudio.onended = () => this.nextTrack('chase');
         this.dom.freezeAudio.onended = () => this.nextTrack('freeze');
+
+        // Audio errors - skip to next track on failure
+        this.dom.chaseAudio.onerror = () => {
+            if (this.state !== 'IDLE') {
+                this.showToast('Audio error - skipping track');
+                this.nextTrack('chase');
+            }
+        };
+        this.dom.freezeAudio.onerror = () => {
+            if (this.state !== 'IDLE') {
+                this.showToast('Audio error - skipping track');
+                this.nextTrack('freeze');
+            }
+        };
 
         // Toggles - with immediate effect handlers
         this.dom.showTimer.onchange = () => {
@@ -1599,10 +1614,27 @@ const Game = {
             if (player.readyState >= 1 && !isNaN(player.duration)) {
                 doSkipAndPlay();
             } else {
+                let handled = false;
                 const onMeta = () => {
+                    if (handled) return;
+                    handled = true;
+                    clearTimeout(metaTimeout);
                     player.removeEventListener('loadedmetadata', onMeta);
                     doSkipAndPlay();
                 };
+                // Timeout fallback if metadata never loads
+                const metaTimeout = setTimeout(() => {
+                    if (handled) return;
+                    handled = true;
+                    player.removeEventListener('loadedmetadata', onMeta);
+                    // Play without skip intro since we don't know duration
+                    player.volume = targetVol;
+                    player.play().catch(() => {});
+                }, TIMEOUTS.METADATA_LOAD);
+                // Track for cleanup on stop
+                if (!this._pendingMetaTimeouts) this._pendingMetaTimeouts = [];
+                this._pendingMetaTimeouts.push(metaTimeout);
+
                 player.addEventListener('loadedmetadata', onMeta);
                 // Trigger load if not already loading
                 if (player.readyState === 0) {
@@ -1720,6 +1752,7 @@ const Game = {
                         }, 500);
                     } else {
                         this.showToast(`${type}: Too many errors - stopping`);
+                        this.stop();
                     }
                 }
             }
@@ -1987,6 +2020,11 @@ const Game = {
         if (this._ytPollInterval) {
             clearInterval(this._ytPollInterval);
             this._ytPollInterval = null;
+        }
+        // Clear pending metadata load timeouts
+        if (this._pendingMetaTimeouts) {
+            this._pendingMetaTimeouts.forEach(t => clearTimeout(t));
+            this._pendingMetaTimeouts = null;
         }
         // Clear shuffle history to prevent memory leak
         this._shuffleHistory = null;
@@ -2261,10 +2299,27 @@ const Game = {
         if (newAudio.readyState >= 1 && !isNaN(newAudio.duration)) {
             doSeekThenPlay();
         } else {
+            let handled = false;
             const onMeta = () => {
+                if (handled) return;
+                handled = true;
+                clearTimeout(metaTimeout);
                 newAudio.removeEventListener('loadedmetadata', onMeta);
                 doSeekThenPlay();
             };
+            // Timeout fallback if metadata never loads
+            const metaTimeout = setTimeout(() => {
+                if (handled) return;
+                handled = true;
+                newAudio.removeEventListener('loadedmetadata', onMeta);
+                // Play without seeking since we don't know duration
+                atCorrectPosition = true;
+                startPlayback();
+            }, TIMEOUTS.METADATA_LOAD);
+            // Track for cleanup on stop
+            if (!this._pendingMetaTimeouts) this._pendingMetaTimeouts = [];
+            this._pendingMetaTimeouts.push(metaTimeout);
+
             newAudio.addEventListener('loadedmetadata', onMeta);
             if (newAudio.readyState === 0) {
                 newAudio.load();
