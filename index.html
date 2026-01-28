@@ -2223,7 +2223,10 @@ const Game = {
             // Reset error count for this player on successful play
             if (this._ytErrorCount) this._ytErrorCount[newType] = 0;
 
-            // Only skip intro on NEW tracks (when shuffled), not when resuming same song
+            // Start crossfade immediately - don't wait for buffering
+            startCrossfade();
+
+            // Skip intro on NEW tracks (when shuffled) - do async after crossfade starts
             if (this.dom.skipIntro.checked && shuffled) {
                 let attempts = 0;
                 this._ytPollInterval = setInterval(() => {
@@ -2235,17 +2238,12 @@ const Game = {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
                         this.safeExec(() => newPlayer.seekTo(AUDIO.SKIP_SECONDS, true));
-                        startCrossfade(); // No delay
                     } else if (attempts >= YT_POLLING.MAX_ATTEMPTS) {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
-                        // Try to seek anyway as fallback
                         this.safeExec(() => newPlayer.seekTo(AUDIO.SKIP_SECONDS, true));
-                        startCrossfade();
                     }
                 }, YT_POLLING.INTERVAL);
-            } else {
-                startCrossfade();
             }
         });
     },
