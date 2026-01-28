@@ -968,7 +968,7 @@ const TIMEOUTS = {
     SAVE_DEBOUNCE: 300,
     PHASE_TRANSITION_LOCK: 250,  // Brief lock to prevent double-triggers
     YT_SEEK_DELAY: 200,  // Wait for YouTube to start buffering before seeking
-    METADATA_LOAD: 5000  // Max wait for audio metadata before fallback
+    METADATA_LOAD: 1000  // Max wait for audio metadata before fallback (local files load fast)
 };
 
 const CROSSFADE = {
@@ -2266,18 +2266,47 @@ const Game = {
         const oldStartVol = oldAudio ? Math.max(oldAudio.volume, targetVol * 0.5) : targetVol;
         if (oldAudio) oldAudio.volume = oldStartVol;
 
-        // Start new audio at low volume (15%) so users hear it starting while voice speaks
+        // Start new audio at low volume so users hear it starting while voice speaks
         const preloadVol = targetVol * 0.15;
-        newAudio.volume = preloadVol;
 
-        // Track when we're at correct position (for skip functionality)
-        let atCorrectPosition = !shouldSkip;
+        // Crossfade function - only called once new audio is ready
+        const startCrossfade = () => {
+            let step = 0;
+            this._crossfadeInterval = setInterval(() => {
+                step++;
+                const progress = step / CROSSFADE.STEPS;
+                const fadeOutCurve = CROSSFADE.fadeOutCurve(progress);
+                const fadeInCurve = CROSSFADE.fadeInCurve(progress);
 
-        // Function to start playing (after seek if needed)
-        const startPlayback = () => {
-            newAudio.play().catch(e => {
-                if (e.name === 'NotAllowedError') this.showToast('Tap screen to enable audio');
-            });
+                // Fade out old audio
+                if (oldAudio && !oldAudio.paused) {
+                    oldAudio.volume = Math.max(0, oldStartVol * fadeOutCurve);
+                }
+                // Fade in new audio
+                newAudio.volume = Math.min(targetVol, preloadVol + (targetVol - preloadVol) * fadeInCurve);
+
+                if (step >= CROSSFADE.STEPS) {
+                    clearInterval(this._crossfadeInterval);
+                    this._crossfadeInterval = null;
+                    if (oldAudio) {
+                        oldAudio.pause();
+                        oldAudio.volume = targetVol;
+                    }
+                    newAudio.volume = targetVol;
+                }
+            }, CROSSFADE.INTERVAL);
+        };
+
+        // Function to start playing and crossfade
+        const startPlaybackAndCrossfade = () => {
+            newAudio.volume = preloadVol;
+            newAudio.play()
+                .then(() => startCrossfade())
+                .catch(e => {
+                    if (e.name === 'NotAllowedError') this.showToast('Tap screen to enable audio');
+                    // Start crossfade anyway to fade out old audio
+                    startCrossfade();
+                });
         };
 
         const doSeekThenPlay = () => {
@@ -2285,17 +2314,15 @@ const Game = {
                 newAudio.currentTime = AUDIO.SKIP_SECONDS;
                 const onSeeked = () => {
                     newAudio.removeEventListener('seeked', onSeeked);
-                    atCorrectPosition = true;
-                    startPlayback();
+                    startPlaybackAndCrossfade();
                 };
                 newAudio.addEventListener('seeked', onSeeked);
             } else {
-                atCorrectPosition = true;
-                startPlayback();
+                startPlaybackAndCrossfade();
             }
         };
 
-        // Wait for metadata if needed
+        // Wait for metadata if needed, keeping old audio playing
         if (newAudio.readyState >= 1 && !isNaN(newAudio.duration)) {
             doSeekThenPlay();
         } else {
@@ -2307,16 +2334,13 @@ const Game = {
                 newAudio.removeEventListener('loadedmetadata', onMeta);
                 doSeekThenPlay();
             };
-            // Timeout fallback if metadata never loads
+            // Timeout fallback - play without seek if metadata slow
             const metaTimeout = setTimeout(() => {
                 if (handled) return;
                 handled = true;
                 newAudio.removeEventListener('loadedmetadata', onMeta);
-                // Play without seeking since we don't know duration
-                atCorrectPosition = true;
-                startPlayback();
+                startPlaybackAndCrossfade();
             }, TIMEOUTS.METADATA_LOAD);
-            // Track for cleanup on stop
             if (!this._pendingMetaTimeouts) this._pendingMetaTimeouts = [];
             this._pendingMetaTimeouts.push(metaTimeout);
 
@@ -2325,41 +2349,6 @@ const Game = {
                 newAudio.load();
             }
         }
-
-        // Crossfade: fade out old, fade in new (but new stays muted until at correct position)
-        let step = 0;
-        this._crossfadeInterval = setInterval(() => {
-            step++;
-            const progress = step / CROSSFADE.STEPS;
-
-            // Exponential curves for more distinct transitions
-            const fadeOutCurve = Math.pow(1 - progress, 2); // Fast drop, then taper
-            const fadeInCurve = 1 - Math.pow(1 - progress, 2); // Slow start, accelerates
-
-            // Fade out old audio
-            if (oldAudio && !oldAudio.paused) {
-                oldAudio.volume = Math.max(0, oldStartVol * fadeOutCurve);
-            }
-
-            // Fade in new audio (starts from preload volume, ramps to target)
-            if (atCorrectPosition) {
-                const fadeInVol = preloadVol + (targetVol - preloadVol) * fadeInCurve;
-                newAudio.volume = Math.min(targetVol, fadeInVol);
-            }
-
-            // Complete crossfade
-            if (step >= CROSSFADE.STEPS) {
-                clearInterval(this._crossfadeInterval);
-                this._crossfadeInterval = null;
-                if (oldAudio) {
-                    oldAudio.pause();
-                    oldAudio.volume = targetVol;
-                }
-                if (atCorrectPosition) {
-                    newAudio.volume = targetVol;
-                }
-            }
-        }, CROSSFADE.INTERVAL);
     },
 
     scheduleNext(isChase) {
