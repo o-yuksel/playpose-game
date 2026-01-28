@@ -1720,6 +1720,37 @@ const Game = {
         if (player) this.safeExec(() => player.pauseVideo());
     },
 
+    // Pre-buffer both players for seamless transitions
+    preBufferBothPlayers() {
+        const chasePlayer = this.getPlayer('chase');
+        const freezePlayer = this.getPlayer('freeze');
+        const skipIntro = this.dom.skipIntro.checked;
+
+        // Start chase player (will be active first)
+        if (chasePlayer && this.isReady('chase')) {
+            this.safeExec(() => {
+                chasePlayer.unMute();
+                chasePlayer.setVolume(+this.dom.volSlider.value);
+                if (!this.shuffleToRandom(chasePlayer)) chasePlayer.playVideo();
+                if (skipIntro) {
+                    setTimeout(() => this.seekTo(chasePlayer, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
+                }
+            });
+        }
+
+        // Start freeze player muted (pre-buffered for instant switching)
+        if (freezePlayer && this.isReady('freeze')) {
+            this.safeExec(() => {
+                freezePlayer.mute();
+                freezePlayer.setVolume(0);
+                if (!this.shuffleToRandom(freezePlayer)) freezePlayer.playVideo();
+                if (skipIntro) {
+                    setTimeout(() => this.seekTo(freezePlayer, AUDIO.SKIP_SECONDS), TIMEOUTS.YT_SEEK_DELAY);
+                }
+            });
+        }
+    },
+
     seekTo(player, seconds) {
         this.safeExec(() => {
             if (player.getDuration() > seconds) player.seekTo(seconds, true);
@@ -1847,6 +1878,9 @@ const Game = {
                 this.stop();
                 return;
             }
+
+            // Pre-start both players for seamless switching (freeze starts muted)
+            this.preBufferBothPlayers();
         } else {
             if (this.dom.shuffle.checked) {
                 if (this.chaseTracks.length) this.shuffleList('chase');
@@ -2027,10 +2061,11 @@ const Game = {
                 if (step >= CROSSFADE.STEPS) {
                     clearInterval(this._ytCrossfadeInterval);
                     this._ytCrossfadeInterval = null;
+                    // Keep old player running but muted for instant switching (no rebuffer)
                     if (oldPlayer) {
                         this.safeExec(() => {
-                            oldPlayer.pauseVideo();
-                            oldPlayer.setVolume(targetVol);
+                            oldPlayer.setVolume(0);
+                            oldPlayer.mute();
                         });
                     }
                     this.safeExec(() => newPlayer.setVolume(targetVol));
@@ -2042,12 +2077,22 @@ const Game = {
             newPlayer.unMute();
             newPlayer.setVolume(0);
 
-            const shuffled = this.shuffleToRandom(newPlayer);
-            if (!shuffled) {
-                newPlayer.playVideo();
+            // Check if player is already playing (pre-buffered) - skip re-initialization
+            const playerState = this.safeExec(() => newPlayer.getPlayerState());
+            const isAlreadyPlaying = playerState === 1 || playerState === 3; // PLAYING or BUFFERING
+
+            if (!isAlreadyPlaying) {
+                // Only start playback if not already playing
+                const shuffled = this.shuffleToRandom(newPlayer);
+                if (!shuffled) {
+                    newPlayer.playVideo();
+                }
             }
 
-            if (this.dom.skipIntro.checked) {
+            // If already playing and buffered, start crossfade immediately
+            if (isAlreadyPlaying) {
+                startCrossfade();
+            } else if (this.dom.skipIntro.checked) {
                 let attempts = 0;
                 const maxAttempts = 50;
                 this._ytPollInterval = setInterval(() => {
