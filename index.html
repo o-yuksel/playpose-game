@@ -822,7 +822,7 @@
     </div>
     <div id="command">Play · Pose</div>
     <div id="timer"></div>
-    <div id="message">Set up your music and press Start</div>
+    <div id="message">Select Play & Pose music below, then Start!</div>
 
     <button id="startButton" class="btn">Start Game</button>
 
@@ -831,40 +831,7 @@
     </div>
 
     <div class="panel" id="settings">
-        <!-- Simple Timing Controls -->
-        <div class="slider-group">
-            <div class="slider-header">
-                <span class="slider-label">Phase Length</span>
-                <span class="slider-value" id="lengthValue">Short</span>
-            </div>
-            <input type="range" id="lengthSlider" min="1" max="5" value="2">
-            <div class="slider-ticks"><span></span><span></span><span></span><span></span><span></span></div>
-            <div class="slider-desc" id="lengthDesc">~10 seconds per phase</div>
-        </div>
-
-        <div class="slider-group">
-            <div class="slider-header">
-                <span class="slider-label">Repeat Chance</span>
-                <span class="slider-value" id="repeatValue">Never</span>
-            </div>
-            <input type="range" id="repeatSlider" min="1" max="4" value="1">
-            <div class="slider-ticks"><span></span><span></span><span></span><span></span></div>
-            <div class="slider-desc" id="repeatDesc">Always alternates Play/Pose</div>
-        </div>
-
-        <div class="slider-group">
-            <div class="slider-header">
-                <span class="slider-label">Timing</span>
-                <span class="slider-value" id="timingValue">Steady</span>
-            </div>
-            <input type="range" id="timingSlider" min="1" max="4" value="1">
-            <div class="slider-ticks"><span></span><span></span><span></span><span></span></div>
-            <div class="slider-desc" id="timingDesc">Consistent phase durations</div>
-        </div>
-
-        <div class="divider"></div>
-
-        <!-- Music Source -->
+        <!-- Music Source (First!) -->
         <div class="tabs">
             <button class="tab active" id="browseTab">Browse</button>
             <button class="tab" id="localTab">Local</button>
@@ -922,6 +889,39 @@
             <input type="text" class="url-input" id="freezeURL" placeholder="Pose: Paste YouTube URL">
             <button class="sample-btn" id="sampleBtn">Load Sample Music</button>
             <div class="help-text">Tip: YouTube won't play when screen is off on mobile. Use local files for that.</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Timing Controls -->
+        <div class="slider-group">
+            <div class="slider-header">
+                <span class="slider-label">Phase Length</span>
+                <span class="slider-value" id="lengthValue">Short</span>
+            </div>
+            <input type="range" id="lengthSlider" min="1" max="5" value="2">
+            <div class="slider-ticks"><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="slider-desc" id="lengthDesc">~10 seconds per phase</div>
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-header">
+                <span class="slider-label">Repeat Chance</span>
+                <span class="slider-value" id="repeatValue">Never</span>
+            </div>
+            <input type="range" id="repeatSlider" min="1" max="4" value="1">
+            <div class="slider-ticks"><span></span><span></span><span></span><span></span></div>
+            <div class="slider-desc" id="repeatDesc">Always alternates Play/Pose</div>
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-header">
+                <span class="slider-label">Timing</span>
+                <span class="slider-value" id="timingValue">Steady</span>
+            </div>
+            <input type="range" id="timingSlider" min="1" max="4" value="1">
+            <div class="slider-ticks"><span></span><span></span><span></span><span></span></div>
+            <div class="slider-desc" id="timingDesc">Consistent phase durations</div>
         </div>
 
         <div class="divider"></div>
@@ -1942,7 +1942,7 @@ const Game = {
         this.state = 'IDLE';
         this.dom.command.textContent = 'Play · Pose';
         this.dom.timer.textContent = '';
-        this.dom.message.textContent = 'Set up your music and press Start';
+        this.dom.message.textContent = 'Select Play & Pose music below, then Start!';
         document.body.style.background = 'var(--idle)';
         this.dom.startBtn.textContent = 'Start Game';
         // Re-enable music source inputs
