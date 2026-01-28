@@ -1201,11 +1201,11 @@ const Game = {
             // Need at least 30px swipe to trigger
             if (Math.abs(swipeDistance) < 30) return;
 
-            // Swipe UP (finger moves up, positive value) = show panel
-            // Swipe DOWN (finger moves down, negative value) = hide panel
-            if (swipeDistance > 30) {
+            // Swipe DOWN (finger moves down, negative value) = show panel
+            // Swipe UP (finger moves up, positive value) = hide panel
+            if (swipeDistance < -30) {
                 this.dom.settings.classList.remove('scroll-hidden');
-            } else if (swipeDistance < -30) {
+            } else if (swipeDistance > 30) {
                 this.dom.settings.classList.add('scroll-hidden');
             }
         }, { passive: true });
