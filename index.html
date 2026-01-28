@@ -1410,12 +1410,21 @@ const Game = {
         this._pendingVolume = v; // Store for YouTube players not yet ready
         this.dom.chaseAudio.volume = vol;
         this.dom.freezeAudio.volume = vol;
-        ['chase', 'freeze'].forEach(type => {
-            const player = this.getPlayer(type);
-            if (player && this.isReady(type)) {
+        // For YouTube: only set volume on the ACTIVE player, keep inactive muted
+        if (this.source === 'youtube' && this.state !== 'IDLE') {
+            const activeType = this.state === 'CHASE' ? 'chase' : 'freeze';
+            const player = this.getPlayer(activeType);
+            if (player && this.isReady(activeType)) {
                 this.safeExec(() => player.setVolume(v));
             }
-        });
+        } else {
+            ['chase', 'freeze'].forEach(type => {
+                const player = this.getPlayer(type);
+                if (player && this.isReady(type)) {
+                    this.safeExec(() => player.setVolume(v));
+                }
+            });
+        }
     },
 
     // Apply pending volume when player becomes ready
@@ -1981,8 +1990,30 @@ const Game = {
                 return;
             }
 
-            // Start both players for pre-buffering (freeze starts muted)
+            // Start both players for pre-buffering
             const targetVol = +this.dom.volSlider.value;
+
+            // Start chase player (will be active first) at target volume
+            if (this.chasePlayer && this.chaseReady) {
+                this.safeExec(() => {
+                    this.chasePlayer.setVolume(targetVol);
+                    if (this.dom.shuffle.checked) {
+                        this.shuffleToRandom(this.chasePlayer, 'chase');
+                    } else {
+                        this.chasePlayer.playVideo();
+                    }
+                    if (this.dom.skipIntro.checked) {
+                        setTimeout(() => {
+                            const duration = this.safeExec(() => this.chasePlayer.getDuration()) || 0;
+                            if (duration > AUDIO.SKIP_SECONDS) {
+                                this.safeExec(() => this.chasePlayer.seekTo(AUDIO.SKIP_SECONDS, true));
+                            }
+                        }, 300);
+                    }
+                });
+            }
+
+            // Start freeze player (will be inactive) muted at volume 0
             if (this.freezePlayer && this.freezeReady) {
                 this.safeExec(() => {
                     this.freezePlayer.setVolume(0);
@@ -1991,7 +2022,6 @@ const Game = {
                     } else {
                         this.freezePlayer.playVideo();
                     }
-                    // Pre-seek if skip intro enabled
                     if (this.dom.skipIntro.checked) {
                         setTimeout(() => {
                             const duration = this.safeExec(() => this.freezePlayer.getDuration()) || 0;
@@ -2206,10 +2236,15 @@ const Game = {
             this._ytPrepareTimeout = null;
         }
 
-        // Ensure new player is playing (should already be from pre-buffering)
+        // Get current volumes before changing anything
+        const oldCurrentVol = oldPlayer && this.isReady(oldType)
+            ? (this.safeExec(() => oldPlayer.getVolume()) ?? 0)
+            : 0;
+        const newCurrentVol = this.safeExec(() => newPlayer.getVolume()) ?? 0;
+
+        // Ensure new player is playing and unmuted
         this.safeExec(() => {
             newPlayer.unMute();
-            newPlayer.setVolume(0); // Start at 0, will fade in
             const state = newPlayer.getPlayerState();
             if (state !== 1 && state !== 3) {
                 newPlayer.playVideo();
@@ -2219,7 +2254,7 @@ const Game = {
         // Reset error count
         if (this._ytErrorCount) this._ytErrorCount[newType] = 0;
 
-        // Crossfade: old fades targetVol->0, new fades 0->targetVol
+        // Crossfade: old fades current->0, new fades current->targetVol
         let step = 0;
         this._ytCrossfadeInterval = setInterval(() => {
             step++;
@@ -2227,13 +2262,15 @@ const Game = {
             const fadeOutCurve = CROSSFADE.fadeOutCurve(progress);
             const fadeInCurve = CROSSFADE.fadeInCurve(progress);
 
-            // Fade out old player from targetVol to 0
+            // Fade out old player from its current volume to 0
             if (oldPlayer && this.isReady(oldType)) {
-                this.safeExec(() => oldPlayer.setVolume(Math.round(targetVol * fadeOutCurve)));
+                const vol = Math.round(oldCurrentVol * fadeOutCurve);
+                this.safeExec(() => oldPlayer.setVolume(vol));
             }
 
-            // Fade in new player from 0 to targetVol
-            this.safeExec(() => newPlayer.setVolume(Math.round(targetVol * fadeInCurve)));
+            // Fade in new player from its current volume to targetVol
+            const newVol = Math.round(newCurrentVol + (targetVol - newCurrentVol) * fadeInCurve);
+            this.safeExec(() => newPlayer.setVolume(newVol));
 
             // Complete crossfade
             if (step >= CROSSFADE.STEPS) {
