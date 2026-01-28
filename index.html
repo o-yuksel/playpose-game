@@ -835,11 +835,11 @@
         <div class="slider-group">
             <div class="slider-header">
                 <span class="slider-label">Phase Length</span>
-                <span class="slider-value" id="lengthValue">Medium</span>
+                <span class="slider-value" id="lengthValue">Short</span>
             </div>
-            <input type="range" id="lengthSlider" min="1" max="5" value="3">
+            <input type="range" id="lengthSlider" min="1" max="5" value="2">
             <div class="slider-ticks"><span></span><span></span><span></span><span></span><span></span></div>
-            <div class="slider-desc" id="lengthDesc">~20 seconds per phase</div>
+            <div class="slider-desc" id="lengthDesc">~10 seconds per phase</div>
         </div>
 
         <div class="slider-group">
@@ -866,12 +866,12 @@
 
         <!-- Music Source -->
         <div class="tabs">
-            <button class="tab" id="browseTab">Browse</button>
-            <button class="tab active" id="localTab">Local</button>
+            <button class="tab active" id="browseTab">Browse</button>
+            <button class="tab" id="localTab">Local</button>
             <button class="tab" id="ytTab">URL</button>
         </div>
 
-        <div class="music-panel" id="browsePanel">
+        <div class="music-panel active" id="browsePanel">
             <div class="mood-grid" id="moodGrid">
                 <button class="mood-btn" data-mood="party">Party</button>
                 <button class="mood-btn" data-mood="workout">Workout</button>
@@ -904,7 +904,7 @@
             </div>
         </div>
 
-        <div class="music-panel active" id="localPanel">
+        <div class="music-panel" id="localPanel">
             <div class="file-input-wrapper">
                 <label>Play Music</label>
                 <input type="file" id="chaseFiles" accept="audio/*" multiple>
@@ -942,7 +942,7 @@
             </div>
             <div class="toggle">
                 <span>Mute Voice</span>
-                <input type="checkbox" id="muteVoice">
+                <input type="checkbox" id="muteVoice" checked>
             </div>
         </div>
 
@@ -1014,7 +1014,7 @@ const Game = {
     countdown: null,
     remaining: 0,
     wakeLock: null,
-    source: 'local',
+    source: 'youtube',
 
     // Playlists
     chaseTracks: [], freezeTracks: [],
