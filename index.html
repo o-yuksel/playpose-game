@@ -2080,20 +2080,24 @@ const Game = {
             newPlayer.unMute();
             newPlayer.setVolume(0);
 
-            // Check if player is already playing (pre-buffered by scheduleNext)
+            // Check if pre-buffered by scheduleNext
+            const wasPrebuffered = this._prebuffered === newType;
             const playerState = this.safeExec(() => newPlayer.getPlayerState());
             const isAlreadyPlaying = playerState === 1 || playerState === 3; // PLAYING or BUFFERING
 
-            // Only shuffle if NOT pre-buffered (pre-buffer already shuffled)
-            if (!isAlreadyPlaying) {
+            // Only shuffle/start if NOT pre-buffered
+            if (!wasPrebuffered && !isAlreadyPlaying) {
                 const shuffled = this.shuffleToRandom(newPlayer);
                 if (!shuffled) {
                     newPlayer.playVideo();
                 }
             }
 
-            // If already playing (pre-buffered), start crossfade immediately
-            if (isAlreadyPlaying) {
+            // Clear prebuffer flag
+            this._prebuffered = null;
+
+            // If pre-buffered or already playing, start crossfade immediately
+            if (wasPrebuffered || isAlreadyPlaying) {
                 startCrossfade();
             } else if (this.dom.skipIntro.checked) {
                 let attempts = 0;
@@ -2226,14 +2230,31 @@ const Game = {
             }, 1000);
         }
 
-        // Pre-buffer: shuffle inactive player 3 seconds before switch
-        const PREBUFFER_SECONDS = 3;
+        // Pre-buffer: shuffle and seek inactive player 5 seconds before switch
+        const PREBUFFER_SECONDS = 5;
         if (this.source === 'youtube' && duration > PREBUFFER_SECONDS + 1) {
             this._prebufferTimer = setTimeout(() => {
                 const inactiveType = isChase ? 'freeze' : 'chase';
                 const inactivePlayer = this.getPlayer(inactiveType);
-                if (inactivePlayer && this.isReady(inactiveType) && this.dom.shuffle.checked) {
-                    this.safeExec(() => this.shuffleToRandom(inactivePlayer));
+                if (inactivePlayer && this.isReady(inactiveType)) {
+                    this.safeExec(() => {
+                        // Shuffle to random track if enabled
+                        if (this.dom.shuffle.checked) {
+                            this.shuffleToRandom(inactivePlayer);
+                        }
+                        // Pre-seek to skip position so it's buffered
+                        if (this.dom.skipIntro.checked) {
+                            setTimeout(() => {
+                                const dur = inactivePlayer.getDuration() || 0;
+                                if (dur > AUDIO.SKIP_SECONDS) {
+                                    inactivePlayer.seekTo(AUDIO.SKIP_SECONDS, true);
+                                }
+                                this._prebuffered = inactiveType; // Mark as prebuffered
+                            }, 500); // Wait for track to start loading
+                        } else {
+                            this._prebuffered = inactiveType;
+                        }
+                    });
                 }
             }, (duration - PREBUFFER_SECONDS) * 1000);
         }
@@ -2251,6 +2272,7 @@ const Game = {
         if (this.timer) { clearTimeout(this.timer); this.timer = null; }
         if (this.countdown) { clearInterval(this.countdown); this.countdown = null; }
         if (this._prebufferTimer) { clearTimeout(this._prebufferTimer); this._prebufferTimer = null; }
+        this._prebuffered = null;
         this.dom.timer.textContent = '';
     },
 
