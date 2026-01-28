@@ -996,6 +996,35 @@ const YT_ERRORS = {
     150: 'Blocked'
 };
 
+const SHUFFLE = {
+    MAX_HISTORY: 5,
+    HISTORY_RATIO: 0.5  // Use half the playlist for history
+};
+
+const YT_POLLING = {
+    MAX_ATTEMPTS: 15,
+    INTERVAL: 80
+};
+
+// ============================================
+// Shuffle History Helper
+// ============================================
+function getRandomIndexAvoidingHistory(historyArray, currentIndex, totalLength) {
+    const maxHistory = Math.min(SHUFFLE.MAX_HISTORY, Math.floor(totalLength * SHUFFLE.HISTORY_RATIO));
+    const recentIndices = new Set([...historyArray.slice(-maxHistory), currentIndex]);
+    const available = [];
+    for (let i = 0; i < totalLength; i++) {
+        if (!recentIndices.has(i)) available.push(i);
+    }
+    if (available.length > 0) {
+        return available[Math.floor(Math.random() * available.length)];
+    }
+    let newIdx;
+    do {
+        newIdx = Math.floor(Math.random() * totalLength);
+    } while (newIdx === currentIndex && totalLength > 1);
+    return newIdx;
+}
 // ============================================
 // YouTube API Ready Handler
 // ============================================
@@ -1527,27 +1556,9 @@ const Game = {
         if (!this._localShuffleHistory) this._localShuffleHistory = { chase: [], freeze: [] };
         const history = this._localShuffleHistory[type] || [];
         const currentIdx = this.getIdx(type);
+        const maxHistory = Math.min(SHUFFLE.MAX_HISTORY, Math.floor(playlistLength * SHUFFLE.HISTORY_RATIO));
 
-        // Keep history to half the playlist size (max 5)
-        const maxHistory = Math.min(5, Math.floor(playlistLength / 2));
-        const recentIndices = new Set([...history.slice(-maxHistory), currentIdx]);
-
-        // Build pool of available indices
-        const available = [];
-        for (let i = 0; i < playlistLength; i++) {
-            if (!recentIndices.has(i)) available.push(i);
-        }
-
-        // Pick random from available, or any random if all exhausted
-        let newIdx;
-        if (available.length > 0) {
-            newIdx = available[Math.floor(Math.random() * available.length)];
-        } else {
-            // All indices in history, pick any different from current
-            do {
-                newIdx = Math.floor(Math.random() * playlistLength);
-            } while (newIdx === currentIdx && playlistLength > 1);
-        }
+        const newIdx = getRandomIndexAvoidingHistory(history, currentIdx, playlistLength);
 
         // Update history
         this._localShuffleHistory[type] = [...history, newIdx].slice(-maxHistory);
@@ -1779,27 +1790,9 @@ const Game = {
             const playerType = type || 'chase';
             const history = this._shuffleHistory[playerType] || [];
             const currentIndex = this.safeExec(() => player.getPlaylistIndex()) ?? -1;
+            const maxHistory = Math.min(SHUFFLE.MAX_HISTORY, Math.floor(playlist.length * SHUFFLE.HISTORY_RATIO));
 
-            // Keep history to half playlist size (max 5)
-            const maxHistory = Math.min(5, Math.floor(playlist.length / 2));
-            const recentIndices = new Set([...history.slice(-maxHistory), currentIndex]);
-
-            // Build pool of available indices
-            const available = [];
-            for (let i = 0; i < playlist.length; i++) {
-                if (!recentIndices.has(i)) available.push(i);
-            }
-
-            // Pick random from available pool
-            let newIndex;
-            if (available.length > 0) {
-                newIndex = available[Math.floor(Math.random() * available.length)];
-            } else {
-                // All in history, pick any different from current
-                do {
-                    newIndex = Math.floor(Math.random() * playlist.length);
-                } while (newIndex === currentIndex && playlist.length > 1);
-            }
+            const newIndex = getRandomIndexAvoidingHistory(history, currentIndex, playlist.length);
 
             // Update history and play
             this._shuffleHistory[playerType] = [...history, newIndex].slice(-maxHistory);
@@ -2194,7 +2187,6 @@ const Game = {
 
             if (this.dom.skipIntro.checked) {
                 let attempts = 0;
-                const maxAttempts = 15; // Quick timeout for snappy transitions
                 this._ytPollInterval = setInterval(() => {
                     attempts++;
                     const duration = this.safeExec(() => newPlayer.getDuration()) || 0;
@@ -2205,12 +2197,12 @@ const Game = {
                         this._ytPollInterval = null;
                         this.safeExec(() => newPlayer.seekTo(AUDIO.SKIP_SECONDS, true));
                         startCrossfade(); // No delay
-                    } else if (attempts >= maxAttempts) {
+                    } else if (attempts >= YT_POLLING.MAX_ATTEMPTS) {
                         clearInterval(this._ytPollInterval);
                         this._ytPollInterval = null;
                         startCrossfade();
                     }
-                }, 80); // Faster polling (80ms instead of 100ms)
+                }, YT_POLLING.INTERVAL);
             } else {
                 startCrossfade();
             }
