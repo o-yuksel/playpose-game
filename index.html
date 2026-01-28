@@ -138,13 +138,11 @@
             pointer-events: auto;
             transition: transform 0.3s ease, opacity 0.3s ease, background 0.4s ease;
         }
-        /* Mobile: scroll down to show, scroll up to hide */
-        @media (hover: none) and (pointer: coarse) {
-            body.playing .panel.scroll-hidden {
-                transform: translateY(100%);
-                opacity: 0;
-                pointer-events: none;
-            }
+        /* Mobile: swipe down to show, swipe up to hide */
+        body.playing .panel.scroll-hidden {
+            transform: translateY(100%);
+            opacity: 0;
+            pointer-events: none;
         }
         /* Desktop: hover to reveal */
         @media (hover: hover) {
@@ -1183,9 +1181,6 @@ const Game = {
     },
 
     setupMobileScroll() {
-        // Only for touch devices
-        if (!('ontouchstart' in window)) return;
-
         let touchStartY = 0;
 
         document.addEventListener('touchstart', (e) => {
@@ -1948,10 +1943,8 @@ const Game = {
         this.disableMusicInputs(true);
         this.dom.skipControls.classList.add('visible');
         document.body.classList.add('playing');
-        // Mobile: start with panel hidden, swipe up to reveal
-        if ('ontouchstart' in window) {
-            this.dom.settings.classList.add('scroll-hidden');
-        }
+        // Start with panel hidden, swipe down to reveal (or hover on desktop)
+        this.dom.settings.classList.add('scroll-hidden');
 
         this.setState('CHASE');
     },
