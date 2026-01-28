@@ -1,6 +1,7 @@
 {
-  "name": "playlists-function",
+  "name": "playpose-game",
   "version": "1.0.0",
+  "private": true,
   "dependencies": {
     "ytmusic-api": "^5.2.0"
   }
