@@ -32,17 +32,17 @@ async function fetchMoodPlaylists(mood, limit = 10) {
     const results = await yt.searchPlaylists(targetMood + " music");
 
     const playlists = results.slice(0, limit).map(item => ({
-      id: item.playlistId,
-      title: item.name || "Unknown",
-      description: item.artist?.name || "",
-      thumbnail: item.thumbnails?.[0]?.url || "",
-      url: `https://www.youtube.com/playlist?list=${item.playlistId}`
-    })).filter(p => p.id && p.id !== "null" && p.id !== "None");
+      id: item.playlistId || item.browseId || item.id,
+      title: item.name || item.title || "Unknown",
+      description: item.artist?.name || item.subtitle || "",
+      thumbnail: item.thumbnails?.[0]?.url || item.thumbnail || "",
+      url: `https://www.youtube.com/playlist?list=${item.playlistId || item.browseId || item.id}`
+    })).filter(p => p.id && p.id !== "null" && p.id !== "None" && p.id !== "undefined");
 
-    return playlists;
+    return playlists.length > 0 ? playlists : [];
   } catch (error) {
     console.error("Error fetching mood playlists:", error);
-    return { error: error.message };
+    return [];
   }
 }
 
@@ -52,17 +52,17 @@ async function searchPlaylists(query, limit = 10) {
     const results = await yt.searchPlaylists(query);
 
     const playlists = results.slice(0, limit).map(item => ({
-      id: item.playlistId,
-      title: item.name || "Unknown",
-      description: item.artist?.name || "",
-      thumbnail: item.thumbnails?.[0]?.url || "",
-      url: `https://www.youtube.com/playlist?list=${item.playlistId}`
-    })).filter(p => p.id && p.id !== "null" && p.id !== "None");
+      id: item.playlistId || item.browseId || item.id,
+      title: item.name || item.title || "Unknown",
+      description: item.artist?.name || item.subtitle || "",
+      thumbnail: item.thumbnails?.[0]?.url || item.thumbnail || "",
+      url: `https://www.youtube.com/playlist?list=${item.playlistId || item.browseId || item.id}`
+    })).filter(p => p.id && p.id !== "null" && p.id !== "None" && p.id !== "undefined");
 
-    return playlists;
+    return playlists.length > 0 ? playlists : [];
   } catch (error) {
     console.error("Error searching playlists:", error);
-    return { error: error.message };
+    return [];
   }
 }
 
@@ -87,7 +87,7 @@ exports.handler = async (event) => {
       const playlists = await fetchMoodPlaylists(mood, limit);
       result = { playlists };
     } else if (action === "search") {
-      const query = params.query || "";
+      const query = params.query || params.q || "";
       if (!query) {
         result = { error: "Missing query parameter" };
       } else {
