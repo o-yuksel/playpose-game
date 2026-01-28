@@ -1,4 +1,4 @@
-const YTMusic = require("ytmusic-api").default;
+const YTMusic = require("ytmusic-api");
 
 const MOOD_CATEGORIES = {
   party: "party",
