@@ -82,6 +82,14 @@ exports.handler = async (event) => {
   try {
     if (action === "moods") {
       result = { moods: AVAILABLE_MOODS };
+    } else if (action === "debug") {
+      // Debug endpoint to see raw API response format
+      const yt = await getYTMusic();
+      const rawResults = await yt.searchPlaylists("party music");
+      result = {
+        raw: rawResults.slice(0, 2),
+        keys: rawResults.length > 0 ? Object.keys(rawResults[0]) : []
+      };
     } else if (action === "browse") {
       const mood = params.mood || "party";
       const playlists = await fetchMoodPlaylists(mood, limit);
