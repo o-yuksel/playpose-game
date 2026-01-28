@@ -1198,28 +1198,11 @@ const Game = {
 
     setupMobileScroll() {
         let touchStartY = 0;
-        let touchStartedInPanel = false;
-        let touchStartedInPanelTop = false;
         let triggered = false;
 
         document.addEventListener('touchstart', (e) => {
             touchStartY = e.touches[0].clientY;
             triggered = false;
-
-            // Check if touch started inside the panel
-            const panel = this.dom.settings;
-            const panelRect = panel.getBoundingClientRect();
-            const touchX = e.touches[0].clientX;
-
-            touchStartedInPanel = (
-                touchX >= panelRect.left &&
-                touchX <= panelRect.right &&
-                touchStartY >= panelRect.top &&
-                touchStartY <= panelRect.bottom
-            );
-
-            // Check if touch started in top 60px of panel (for closing)
-            touchStartedInPanelTop = touchStartedInPanel && (touchStartY - panelRect.top < 60);
         }, { passive: true });
 
         document.addEventListener('touchmove', (e) => {
@@ -1229,7 +1212,7 @@ const Game = {
             const touchCurrentY = e.touches[0].clientY;
             const swipeDistance = touchStartY - touchCurrentY;
 
-            // Swipe UP = show panel (works anywhere, snappy)
+            // Swipe UP (20px) = show panel
             if (swipeDistance > 20) {
                 triggered = true;
                 this.dom.settings.classList.remove('scroll-hidden');
@@ -1237,8 +1220,8 @@ const Game = {
                 return;
             }
 
-            // Swipe DOWN = hide panel (only from top of panel or outside panel)
-            if (swipeDistance < -40 && (!touchStartedInPanel || touchStartedInPanelTop)) {
+            // Swipe DOWN (20px) = hide panel
+            if (swipeDistance < -20) {
                 triggered = true;
                 this.dom.settings.classList.add('scroll-hidden');
                 this.dom.settings.classList.remove('scroll-visible');
