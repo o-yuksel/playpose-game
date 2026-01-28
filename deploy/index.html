@@ -1197,38 +1197,71 @@ const Game = {
     },
 
     setupMobileScroll() {
-        let lastY = 0;
+        let startY = 0;
+        let lastDirection = 0; // 1 = up, -1 = down, 0 = none
+        let accumulatedMove = 0;
+        let cooldown = false;
+
+        const showMenu = () => {
+            if (cooldown) return;
+            this.dom.settings.classList.remove('scroll-hidden');
+            this.dom.settings.classList.add('scroll-visible');
+            cooldown = true;
+            setTimeout(() => { cooldown = false; }, 200);
+        };
+
+        const hideMenu = () => {
+            if (cooldown) return;
+            this.dom.settings.classList.add('scroll-hidden');
+            this.dom.settings.classList.remove('scroll-visible');
+            cooldown = true;
+            setTimeout(() => { cooldown = false; }, 200);
+        };
 
         document.addEventListener('touchstart', (e) => {
-            lastY = e.touches[0].clientY;
+            startY = e.touches[0].clientY;
+            lastDirection = 0;
+            accumulatedMove = 0;
         }, { passive: true });
 
         document.addEventListener('touchmove', (e) => {
             if (!document.body.classList.contains('playing')) return;
+            if (cooldown) return;
 
             const currentY = e.touches[0].clientY;
-            const deltaY = lastY - currentY; // positive = finger moving up, negative = finger moving down
-            const isMenuVisible = !this.dom.settings.classList.contains('scroll-hidden');
-            const panelRect = this.dom.settings.getBoundingClientRect();
+            const totalMove = startY - currentY; // positive = moved up from start
+            const direction = totalMove > 0 ? 1 : totalMove < 0 ? -1 : 0;
 
-            // Finger moving UP (deltaY > 12) = open menu (works anywhere)
-            if (deltaY > 12 && !isMenuVisible) {
-                this.dom.settings.classList.remove('scroll-hidden');
-                this.dom.settings.classList.add('scroll-visible');
+            // Reset if direction changed
+            if (direction !== 0 && direction !== lastDirection) {
+                accumulatedMove = 0;
+                startY = currentY;
+                lastDirection = direction;
+                return;
             }
 
-            // Finger moving DOWN (deltaY < -12) = close menu
-            // Only if finger is near top of viewport OR near top of the panel
-            if (deltaY < -12 && isMenuVisible) {
-                const nearTopOfScreen = currentY < 120;
-                const nearTopOfPanel = currentY < panelRect.top + 80;
-                if (nearTopOfScreen || nearTopOfPanel) {
-                    this.dom.settings.classList.add('scroll-hidden');
-                    this.dom.settings.classList.remove('scroll-visible');
+            accumulatedMove = Math.abs(totalMove);
+            const isMenuVisible = !this.dom.settings.classList.contains('scroll-hidden');
+
+            // Moving UP - open menu (threshold: 30px)
+            if (direction === 1 && accumulatedMove > 30 && !isMenuVisible) {
+                showMenu();
+                accumulatedMove = 0;
+                startY = currentY;
+            }
+
+            // Moving DOWN - close menu (threshold: 40px, only near top)
+            if (direction === -1 && accumulatedMove > 40 && isMenuVisible) {
+                const panelRect = this.dom.settings.getBoundingClientRect();
+                const nearTop = currentY < 150 || currentY < panelRect.top + 100;
+                if (nearTop) {
+                    hideMenu();
+                    accumulatedMove = 0;
+                    startY = currentY;
                 }
             }
 
-            lastY = currentY;
+            lastDirection = direction;
         }, { passive: true });
     },
 
