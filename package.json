@@ -10,14 +10,24 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
-    "testMatch": ["**/__tests__/**/*.test.js"],
-    "verbose": true
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ],
+    "verbose": true,
+    "reporters": [
+      "default",
+      ["tdd-guard-jest", { "projectRoot": "." }]
+    ]
   },
-  "keywords": ["game", "party"],
+  "keywords": [
+    "game",
+    "party"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
     "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0"
+    "jest-environment-jsdom": "^29.7.0",
+    "tdd-guard-jest": "^0.1.4"
   }
 }

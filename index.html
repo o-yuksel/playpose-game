@@ -20,9 +20,6 @@
             --slider-thumb-size: 28px;
             --slider-track-height: 8px;
             --slider-thumb-offset: -10px;
-            /* Legacy aliases for existing code */
-            --play: var(--play);
-            --pose: var(--pose);
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
@@ -613,6 +610,11 @@
             transition: opacity 0.6s ease;
         }
         .yt-wrapper.hidden { opacity: 0; pointer-events: none; }
+        .yt-label {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-top: 0.25rem;
+        }
 
         /* Dark overlay for readability */
         .video-overlay {
@@ -966,7 +968,7 @@ const TIMEOUTS = {
     YT_INIT: 8000,
     TOAST: 3000,
     SAVE_DEBOUNCE: 300,
-    PHASE_TRANSITION_LOCK: 250,  // Brief lock to prevent double-triggers
+    PHASE_TRANSITION_LOCK: 500,  // Lock to prevent race conditions during state transitions (covers audio/YT crossfade setup)
     YT_SEEK_DELAY: 200,  // Wait for YouTube to start buffering before seeking
     METADATA_LOAD: 1000,  // Max wait for audio metadata before fallback (local files load fast)
     YT_HEALTH_CHECK: 60000  // Health check interval for YouTube players (60 seconds)
@@ -1306,9 +1308,26 @@ const Game = {
 
         this.dom.playlistResults.innerHTML = '<div class="browse-loading">Loading playlists...</div>';
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         try {
-            const response = await fetch(`${this.apiBase}?action=browse&mood=${encodeURIComponent(mood)}&limit=15`);
-            const data = await response.json();
+            const response = await fetch(
+                `${this.apiBase}?action=browse&mood=${encodeURIComponent(mood)}&limit=15`,
+                { signal: controller.signal }
+            );
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                throw new Error('Invalid response from server');
+            }
 
             if (data.error) {
                 throw new Error(data.error);
@@ -1316,7 +1335,8 @@ const Game = {
 
             this.renderPlaylists(data.playlists || []);
         } catch (error) {
-            this.dom.playlistResults.innerHTML = `<div class="browse-error">Failed to load: ${error.message}</div>`;
+            const message = error.name === 'AbortError' ? 'Request timed out' : error.message;
+            this.dom.playlistResults.innerHTML = `<div class="browse-error">Failed to load: ${this.escapeHtml(message)}</div>`;
         }
     },
 
@@ -1328,9 +1348,26 @@ const Game = {
         this.dom.moodGrid.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
         this.dom.playlistResults.innerHTML = '<div class="browse-loading">Searching...</div>';
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         try {
-            const response = await fetch(`${this.apiBase}?action=search&q=${encodeURIComponent(query)}&limit=15`);
-            const data = await response.json();
+            const response = await fetch(
+                `${this.apiBase}?action=search&q=${encodeURIComponent(query)}&limit=15`,
+                { signal: controller.signal }
+            );
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
+            let data;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                throw new Error('Invalid response from server');
+            }
 
             if (data.error) {
                 throw new Error(data.error);
@@ -1338,7 +1375,8 @@ const Game = {
 
             this.renderPlaylists(data.playlists || []);
         } catch (error) {
-            this.dom.playlistResults.innerHTML = `<div class="browse-error">Search failed: ${error.message}</div>`;
+            const message = error.name === 'AbortError' ? 'Request timed out' : error.message;
+            this.dom.playlistResults.innerHTML = `<div class="browse-error">Search failed: ${this.escapeHtml(message)}</div>`;
         }
     },
 
@@ -1478,43 +1516,54 @@ const Game = {
             if (!data) {
                 data = JSON.parse(localStorage.getItem('playpose_v6'));
             }
-            if (!data) return;
+            // Validate data is a plain object (not null, array, or primitive)
+            if (!data || typeof data !== 'object' || Array.isArray(data)) return;
 
-            if (data.length && this.LENGTH_PRESETS[data.length]) {
-                this.dom.lengthSlider.value = data.length;
-                this.dom.lengthValue.textContent = this.LENGTH_PRESETS[data.length].label;
-                this.dom.lengthDesc.textContent = this.LENGTH_PRESETS[data.length].desc;
+            // Validate slider values - must be valid integer preset keys
+            const lengthKey = Number(data.length);
+            if (Number.isInteger(lengthKey) && Object.prototype.hasOwnProperty.call(this.LENGTH_PRESETS, lengthKey)) {
+                this.dom.lengthSlider.value = lengthKey;
+                this.dom.lengthValue.textContent = this.LENGTH_PRESETS[lengthKey].label;
+                this.dom.lengthDesc.textContent = this.LENGTH_PRESETS[lengthKey].desc;
             }
-            if (data.repeat && this.REPEAT_CHANCE[data.repeat]) {
-                this.dom.repeatSlider.value = data.repeat;
-                this.dom.repeatValue.textContent = this.REPEAT_CHANCE[data.repeat].label;
-                this.dom.repeatDesc.textContent = this.REPEAT_CHANCE[data.repeat].desc;
+            const repeatKey = Number(data.repeat);
+            if (Number.isInteger(repeatKey) && Object.prototype.hasOwnProperty.call(this.REPEAT_CHANCE, repeatKey)) {
+                this.dom.repeatSlider.value = repeatKey;
+                this.dom.repeatValue.textContent = this.REPEAT_CHANCE[repeatKey].label;
+                this.dom.repeatDesc.textContent = this.REPEAT_CHANCE[repeatKey].desc;
             }
-            if (data.timing && this.TIMING_VARIANCE[data.timing]) {
-                this.dom.timingSlider.value = data.timing;
-                this.dom.timingValue.textContent = this.TIMING_VARIANCE[data.timing].label;
-                this.dom.timingDesc.textContent = this.TIMING_VARIANCE[data.timing].desc;
+            const timingKey = Number(data.timing);
+            if (Number.isInteger(timingKey) && Object.prototype.hasOwnProperty.call(this.TIMING_VARIANCE, timingKey)) {
+                this.dom.timingSlider.value = timingKey;
+                this.dom.timingValue.textContent = this.TIMING_VARIANCE[timingKey].label;
+                this.dom.timingDesc.textContent = this.TIMING_VARIANCE[timingKey].desc;
             }
-            if (data.volume) {
-                this.dom.volSlider.value = data.volume;
-                this.dom.volValue.textContent = data.volume + '%';
+            // Validate volume - must be finite number in valid range
+            const volume = Number(data.volume);
+            if (Number.isFinite(volume) && volume >= 0 && volume <= 100) {
+                this.dom.volSlider.value = volume;
+                this.dom.volValue.textContent = volume + '%';
             }
-            // Handle both old 'source' and new 'uiSource' formats
+            // Handle both old 'source' and new 'uiSource' formats - whitelist valid sources
             const srcToLoad = data.uiSource || data.source;
-            if (srcToLoad) this.setSource(srcToLoad);
-            if (data.playURL) this.dom.playURL.value = data.playURL;
-            if (data.poseURL) this.dom.poseURL.value = data.poseURL;
-            // Restore selected playlist titles for browse panel
-            if (data.selectedPlayTitle && data.selectedPlayTitle !== 'Not selected') {
+            if (typeof srcToLoad === 'string' && ['youtube', 'local'].includes(srcToLoad)) {
+                this.setSource(srcToLoad);
+            }
+            // Validate URLs are strings
+            if (typeof data.playURL === 'string') this.dom.playURL.value = data.playURL;
+            if (typeof data.poseURL === 'string') this.dom.poseURL.value = data.poseURL;
+            // Restore selected playlist titles - validate strings
+            if (typeof data.selectedPlayTitle === 'string' && data.selectedPlayTitle !== 'Not selected') {
                 this.dom.selectedPlay.textContent = data.selectedPlayTitle;
             }
-            if (data.selectedPoseTitle && data.selectedPoseTitle !== 'Not selected') {
+            if (typeof data.selectedPoseTitle === 'string' && data.selectedPoseTitle !== 'Not selected') {
                 this.dom.selectedPose.textContent = data.selectedPoseTitle;
             }
-            if (data.showTimer !== undefined) this.dom.showTimer.checked = data.showTimer;
-            if (data.skipIntro !== undefined) this.dom.skipIntro.checked = data.skipIntro;
-            if (data.shuffle !== undefined) this.dom.shuffle.checked = data.shuffle;
-            if (data.muteVoice !== undefined) this.dom.muteVoice.checked = data.muteVoice;
+            // Validate booleans before setting checkboxes
+            if (typeof data.showTimer === 'boolean') this.dom.showTimer.checked = data.showTimer;
+            if (typeof data.skipIntro === 'boolean') this.dom.skipIntro.checked = data.skipIntro;
+            if (typeof data.shuffle === 'boolean') this.dom.shuffle.checked = data.shuffle;
+            if (typeof data.muteVoice === 'boolean') this.dom.muteVoice.checked = data.muteVoice;
         });
     },
 
@@ -1744,6 +1793,10 @@ const Game = {
                     this.applyPendingVolume(type);
                 },
                 onStateChange: e => {
+                    // Reset error count when playback succeeds (prevents infinite loop from accumulating errors)
+                    if (e.data === YT.PlayerState.PLAYING) {
+                        if (this._ytErrorCount) this._ytErrorCount[type] = 0;
+                    }
                     if (e.data === YT.PlayerState.ENDED && parsed.type === 'video') {
                         e.target.seekTo(0);
                         if (this.state === type.toUpperCase()) {
@@ -2196,7 +2249,9 @@ const Game = {
             this._ytPrepareTimeout = null;
         }
 
-        // Lock during transition to prevent race conditions
+        // Lock during transition to prevent race conditions from rapid setState calls.
+        // The timeout must be long enough to cover crossfade setup (YT player commands, audio volume changes).
+        // 500ms provides safety margin - crossfade is immediate but YouTube API calls can be slow.
         this._inTransition = true;
         setTimeout(() => { this._inTransition = false; }, TIMEOUTS.PHASE_TRANSITION_LOCK);
 

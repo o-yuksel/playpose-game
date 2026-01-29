@@ -968,8 +968,7 @@ const TIMEOUTS = {
     SAVE_DEBOUNCE: 300,
     PHASE_TRANSITION_LOCK: 250,  // Brief lock to prevent double-triggers
     YT_SEEK_DELAY: 200,  // Wait for YouTube to start buffering before seeking
-    METADATA_LOAD: 1000,  // Max wait for audio metadata before fallback (local files load fast)
-    YT_HEALTH_CHECK: 60000  // Health check interval for YouTube players (60 seconds)
+    METADATA_LOAD: 1000  // Max wait for audio metadata before fallback (local files load fast)
 };
 
 const CROSSFADE = {
@@ -1929,11 +1928,7 @@ const Game = {
 
     async requestWake() {
         if (!('wakeLock' in navigator)) return;
-        try {
-            this.wakeLock = await navigator.wakeLock.request('screen');
-        } catch (e) {
-            // Wake lock request failed (e.g., page not visible)
-        }
+        this.safeExec(async () => { this.wakeLock = await navigator.wakeLock.request('screen'); });
     },
 
     releaseWake() {
@@ -2063,9 +2058,6 @@ const Game = {
         window.scrollTo({ top: 0, behavior: 'instant' });
         this.dom.settings.classList.add('scroll-hidden');
 
-        // Start YouTube health monitoring
-        this.startYTHealthCheck();
-
         this.setState('PLAY');
     },
 
@@ -2091,8 +2083,6 @@ const Game = {
             clearTimeout(this._ytPrepareTimeout);
             this._ytPrepareTimeout = null;
         }
-        // Stop YouTube health monitoring
-        this.stopYTHealthCheck();
         // Clear pending metadata load timeouts
         if (this._pendingMetaTimeouts) {
             this._pendingMetaTimeouts.forEach(t => clearTimeout(t));
@@ -2103,13 +2093,6 @@ const Game = {
         this._localShuffleHistory = null;
         // Clear YouTube error retry counter
         this._ytErrorCount = { play: 0, pose: 0 };
-        // Clear pending seeked event listeners
-        if (this._pendingSeekedListeners) {
-            this._pendingSeekedListeners.forEach(({ audio, handler }) => {
-                audio.removeEventListener('seeked', handler);
-            });
-            this._pendingSeekedListeners = null;
-        }
 
         // Revoke blob URLs to prevent memory leaks
         ['play', 'pose'].forEach(type => {
@@ -2223,19 +2206,6 @@ const Game = {
 
                 this.crossfadeLocal(this.getAudio(newType), this.getAudio(oldType));
             }
-        } else if (this.dom.shuffle.checked && this.state !== 'IDLE') {
-            // Phase repeated but shuffle is on - pick new track for variety
-            const type = isPlay ? 'play' : 'pose';
-            if (this.source === 'youtube') {
-                const player = this.getPlayer(type);
-                if (player && this.isReady(type)) {
-                    this.shuffleToRandom(player, type);
-                }
-            } else if (this.getTracks(type)?.length > 1) {
-                const newIdx = this.getRandomTrackIndex(type, this.getTracks(type).length);
-                this.setIdx(type, newIdx);
-                this.loadTrack(type);
-            }
         }
 
         this.scheduleNext(isPlay);
@@ -2306,12 +2276,8 @@ const Game = {
         if (this.dom.shuffle.checked) {
             this.shuffleToRandom(player, type);
         }
-        // If shuffle OFF, seek back to start position to prevent drift
-        // The inactive player plays muted, so it drifts out of position over time
-        // Seek to skip intro position (or 0 if skip intro disabled) so it's ready for next switch
+        // If shuffle OFF, just ensure it's still playing (muted) - will resume from current position
         this.safeExec(() => {
-            const seekPosition = this.dom.skipIntro.checked ? AUDIO.SKIP_SECONDS : 0;
-            player.seekTo(seekPosition, true);
             const state = player.getPlayerState();
             if (state !== 1 && state !== 3) {
                 player.playVideo();
@@ -2383,16 +2349,8 @@ const Game = {
                 newAudio.currentTime = AUDIO.SKIP_SECONDS;
                 const onSeeked = () => {
                     newAudio.removeEventListener('seeked', onSeeked);
-                    // Remove from pending list
-                    if (this._pendingSeekedListeners) {
-                        const idx = this._pendingSeekedListeners.findIndex(p => p.handler === onSeeked);
-                        if (idx !== -1) this._pendingSeekedListeners.splice(idx, 1);
-                    }
                     startPlaybackAndCrossfade();
                 };
-                // Track for cleanup on stop
-                if (!this._pendingSeekedListeners) this._pendingSeekedListeners = [];
-                this._pendingSeekedListeners.push({ audio: newAudio, handler: onSeeked });
                 newAudio.addEventListener('seeked', onSeeked);
             } else {
                 startPlaybackAndCrossfade();
@@ -2484,66 +2442,6 @@ const Game = {
         }
     },
 
-    // YouTube player health check - monitors for silent failures during extended playback
-    startYTHealthCheck() {
-        if (this.source !== 'youtube') return;
-        this.stopYTHealthCheck();
-
-        this._ytHealthInterval = setInterval(() => {
-            if (this.state === 'IDLE') {
-                this.stopYTHealthCheck();
-                return;
-            }
-            this.checkYTPlayerHealth();
-        }, TIMEOUTS.YT_HEALTH_CHECK);
-    },
-
-    stopYTHealthCheck() {
-        if (this._ytHealthInterval) {
-            clearInterval(this._ytHealthInterval);
-            this._ytHealthInterval = null;
-        }
-    },
-
-    checkYTPlayerHealth() {
-        const players = [
-            { player: this.playPlayer, ready: this.playReady, type: 'play' },
-            { player: this.posePlayer, ready: this.poseReady, type: 'pose' }
-        ];
-
-        for (const { player, ready, type } of players) {
-            if (!player || !ready) continue;
-
-            const state = this.safeExec(() => player.getPlayerState(), -999);
-
-            // State -1 = unstarted/error, -999 = getPlayerState failed
-            if (state === -1 || state === -999) {
-                this.attemptYTRecovery(player, type, state);
-            }
-        }
-    },
-
-    attemptYTRecovery(player, type, errorState) {
-        // Try to recover by calling playVideo
-        const playAttempt = this.safeExec(() => {
-            player.playVideo();
-            return true;
-        }, false);
-
-        if (!playAttempt) {
-            this.showToast(`${type === 'play' ? 'Play' : 'Pose'} player failed - try restarting the game`);
-            return;
-        }
-
-        // Check state after brief delay to see if recovery worked
-        setTimeout(() => {
-            const newState = this.safeExec(() => player.getPlayerState(), -999);
-            if (newState === -1 || newState === -999) {
-                this.showToast(`${type === 'play' ? 'Play' : 'Pose'} player unresponsive - try restarting the game`);
-            }
-        }, 1000);
-    },
-
     speak(text) {
         if (this.dom.muteVoice.checked) return;
         this.safeExec(() => {
@@ -2556,13 +2454,9 @@ const Game = {
     },
 
     showToast(msg) {
-        if (this._toastTimeout) clearTimeout(this._toastTimeout);
         this.dom.toast.textContent = msg;
         this.dom.toast.classList.add('visible');
-        this._toastTimeout = setTimeout(() => {
-            this.dom.toast.classList.remove('visible');
-            this._toastTimeout = null;
-        }, TIMEOUTS.TOAST);
+        setTimeout(() => this.dom.toast.classList.remove('visible'), TIMEOUTS.TOAST);
     }
 };
 

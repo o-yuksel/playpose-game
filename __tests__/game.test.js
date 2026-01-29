@@ -1,5 +1,5 @@
 /**
- * Chase & Freeze Game - Unit Tests
+ * Play & Pose Game - Unit Tests
  * Tests edge cases for settings changes during gameplay
  */
 
@@ -71,22 +71,22 @@ beforeEach(() => {
         <button id="ytTab"></button>
         <div id="localPanel"></div>
         <div id="ytPanel"></div>
-        <input type="file" id="chaseFiles">
-        <input type="file" id="freezeFiles">
-        <span id="chaseName"></span>
-        <span id="freezeName"></span>
-        <input type="text" id="chaseURL">
-        <input type="text" id="freezeURL">
+        <input type="file" id="playFiles">
+        <input type="file" id="poseFiles">
+        <span id="playName"></span>
+        <span id="poseName"></span>
+        <input type="text" id="playURL">
+        <input type="text" id="poseURL">
         <button id="sampleBtn"></button>
         <input type="checkbox" id="showTimer">
         <input type="checkbox" id="skipIntro" checked>
         <input type="checkbox" id="shuffle" checked>
         <input type="checkbox" id="muteVoice">
-        <audio id="chaseAudio"></audio>
-        <audio id="freezeAudio"></audio>
+        <audio id="playAudio"></audio>
+        <audio id="poseAudio"></audio>
         <div id="ytPlayers"></div>
-        <div id="chaseWrapper"></div>
-        <div id="freezeWrapper"></div>
+        <div id="playWrapper"></div>
+        <div id="poseWrapper"></div>
     `;
 });
 
@@ -103,14 +103,14 @@ function createTestGame() {
         remaining: 0,
         wakeLock: null,
         source: 'local',
-        chaseTracks: [],
-        freezeTracks: [],
-        chaseIdx: 0,
-        freezeIdx: 0,
-        chasePlayer: null,
-        freezePlayer: null,
-        chaseReady: false,
-        freezeReady: false,
+        playTracks: [],
+        poseTracks: [],
+        playIdx: 0,
+        poseIdx: 0,
+        playPlayer: null,
+        posePlayer: null,
+        playReady: false,
+        poseReady: false,
         dom: {},
         _inTransition: false,
         _skipDebounce: false,
@@ -144,10 +144,10 @@ function createTestGame() {
                 'lengthSlider', 'lengthValue', 'randomSlider', 'randomValue',
                 'volSlider', 'volValue',
                 'localTab', 'ytTab', 'localPanel', 'ytPanel',
-                'chaseFiles', 'freezeFiles', 'chaseName', 'freezeName',
-                'chaseURL', 'freezeURL', 'sampleBtn',
+                'playFiles', 'poseFiles', 'playName', 'poseName',
+                'playURL', 'poseURL', 'sampleBtn',
                 'showTimer', 'skipIntro', 'shuffle', 'muteVoice',
-                'chaseAudio', 'freezeAudio', 'ytPlayers', 'chaseWrapper', 'freezeWrapper'
+                'playAudio', 'poseAudio', 'ytPlayers', 'playWrapper', 'poseWrapper'
             ];
             this.dom = ids.reduce((acc, id) => {
                 const key = id === 'startButton' ? 'startBtn' : id;
@@ -159,9 +159,9 @@ function createTestGame() {
         setVolume(v) {
             const vol = v / 100;
             this._pendingVolume = v;
-            if (this.dom.chaseAudio) this.dom.chaseAudio.volume = vol;
-            if (this.dom.freezeAudio) this.dom.freezeAudio.volume = vol;
-            ['chase', 'freeze'].forEach(type => {
+            if (this.dom.playAudio) this.dom.playAudio.volume = vol;
+            if (this.dom.poseAudio) this.dom.poseAudio.volume = vol;
+            ['play', 'pose'].forEach(type => {
                 const player = this.getPlayer(type);
                 if (player && this.isReady(type)) {
                     this.safeExec(() => player.setVolume(v));
@@ -243,7 +243,7 @@ function createTestGame() {
                 volume: this.dom.volSlider.value,
                 showTimer: this.dom.showTimer.checked
             };
-            this.safeExec(() => localStorage.setItem('chasefreeze_v6', JSON.stringify(data)));
+            this.safeExec(() => localStorage.setItem('playpose_v7', JSON.stringify(data)));
         },
 
         save() {
@@ -269,7 +269,7 @@ function createTestGame() {
 describe('Show Timer Toggle', () => {
     test('should start countdown when turned ON mid-game', () => {
         const game = createTestGame();
-        game.state = 'CHASE';
+        game.state = 'PLAY';
         game.remaining = 15;
         game.dom.showTimer.checked = true;
 
@@ -281,7 +281,7 @@ describe('Show Timer Toggle', () => {
 
     test('should stop countdown when turned OFF mid-game', () => {
         const game = createTestGame();
-        game.state = 'CHASE';
+        game.state = 'PLAY';
         game.remaining = 15;
         game.countdown = setInterval(() => {}, 1000);
         game.dom.showTimer.checked = false;
@@ -304,7 +304,7 @@ describe('Show Timer Toggle', () => {
 
     test('should decrement remaining time each second', () => {
         const game = createTestGame();
-        game.state = 'CHASE';
+        game.state = 'PLAY';
         game.remaining = 10;
         game.dom.showTimer.checked = true;
 
@@ -322,7 +322,7 @@ describe('Show Timer Toggle', () => {
 
     test('should not go below 0', () => {
         const game = createTestGame();
-        game.state = 'CHASE';
+        game.state = 'PLAY';
         game.remaining = 1;
         game.dom.showTimer.checked = true;
 
@@ -347,8 +347,8 @@ describe('Volume Control', () => {
 
         game.setVolume(80);
 
-        expect(game.dom.chaseAudio.volume).toBe(0.8);
-        expect(game.dom.freezeAudio.volume).toBe(0.8);
+        expect(game.dom.playAudio.volume).toBe(0.8);
+        expect(game.dom.poseAudio.volume).toBe(0.8);
     });
 
     test('should apply pending volume when YouTube player becomes ready', () => {
@@ -356,9 +356,9 @@ describe('Volume Control', () => {
         const mockPlayer = { setVolume: jest.fn() };
 
         game._pendingVolume = 60;
-        game.chasePlayer = mockPlayer;
+        game.playPlayer = mockPlayer;
 
-        game.applyPendingVolume('chase');
+        game.applyPendingVolume('play');
 
         expect(mockPlayer.setVolume).toHaveBeenCalledWith(60);
     });
@@ -366,9 +366,9 @@ describe('Volume Control', () => {
     test('should not crash when player is null', () => {
         const game = createTestGame();
         game._pendingVolume = 50;
-        game.chasePlayer = null;
+        game.playPlayer = null;
 
-        expect(() => game.applyPendingVolume('chase')).not.toThrow();
+        expect(() => game.applyPendingVolume('play')).not.toThrow();
     });
 });
 
@@ -384,7 +384,7 @@ describe('Skip Button Protection', () => {
 
     test('should not skip during phase transition', () => {
         const game = createTestGame();
-        game.state = 'CHASE';
+        game.state = 'PLAY';
         game._inTransition = true;
 
         const result = game.skipCurrentSong();
@@ -394,7 +394,7 @@ describe('Skip Button Protection', () => {
 
     test('should allow skip during normal gameplay', () => {
         const game = createTestGame();
-        game.state = 'CHASE';
+        game.state = 'PLAY';
         game._inTransition = false;
 
         const result = game.skipCurrentSong();
@@ -426,66 +426,66 @@ describe('Toggle Protection', () => {
 describe('Empty Playlist Handling', () => {
     test('should not crash on nextTrack with empty playlist', () => {
         const game = createTestGame();
-        game.chaseTracks = [];
+        game.playTracks = [];
 
-        expect(() => game.nextTrack('chase')).not.toThrow();
+        expect(() => game.nextTrack('play')).not.toThrow();
     });
 
     test('should not crash on nextTrack with null playlist', () => {
         const game = createTestGame();
-        game.chaseTracks = null;
+        game.playTracks = null;
 
-        expect(() => game.nextTrack('chase')).not.toThrow();
+        expect(() => game.nextTrack('play')).not.toThrow();
     });
 
     test('should wrap index correctly with single track', () => {
         const game = createTestGame();
-        game.chaseTracks = [{ name: 'track1' }];
-        game.chaseIdx = 0;
+        game.playTracks = [{ name: 'track1' }];
+        game.playIdx = 0;
 
-        game.nextTrack('chase');
+        game.nextTrack('play');
 
-        expect(game.chaseIdx).toBe(0); // Wraps back to 0
+        expect(game.playIdx).toBe(0); // Wraps back to 0
     });
 
     test('should increment index with multiple tracks', () => {
         const game = createTestGame();
-        game.chaseTracks = [{ name: 'track1' }, { name: 'track2' }, { name: 'track3' }];
-        game.chaseIdx = 0;
+        game.playTracks = [{ name: 'track1' }, { name: 'track2' }, { name: 'track3' }];
+        game.playIdx = 0;
 
-        game.nextTrack('chase');
+        game.nextTrack('play');
 
-        expect(game.chaseIdx).toBe(1);
+        expect(game.playIdx).toBe(1);
     });
 });
 
 describe('Shuffle List', () => {
     test('should not crash with empty list', () => {
         const game = createTestGame();
-        game.chaseTracks = [];
+        game.playTracks = [];
 
-        expect(() => game.shuffleList('chase')).not.toThrow();
+        expect(() => game.shuffleList('play')).not.toThrow();
     });
 
     test('should not shuffle single item list', () => {
         const game = createTestGame();
-        game.chaseTracks = [{ name: 'only-track' }];
+        game.playTracks = [{ name: 'only-track' }];
 
-        game.shuffleList('chase');
+        game.shuffleList('play');
 
-        expect(game.chaseTracks).toHaveLength(1);
-        expect(game.chaseTracks[0].name).toBe('only-track');
+        expect(game.playTracks).toHaveLength(1);
+        expect(game.playTracks[0].name).toBe('only-track');
     });
 
     test('should shuffle list with multiple items', () => {
         const game = createTestGame();
         // Use many items to ensure shuffle actually changes order
-        game.chaseTracks = Array.from({ length: 100 }, (_, i) => ({ name: `track${i}` }));
-        const originalOrder = game.chaseTracks.map(t => t.name).join(',');
+        game.playTracks = Array.from({ length: 100 }, (_, i) => ({ name: `track${i}` }));
+        const originalOrder = game.playTracks.map(t => t.name).join(',');
 
-        game.shuffleList('chase');
+        game.shuffleList('play');
 
-        const newOrder = game.chaseTracks.map(t => t.name).join(',');
+        const newOrder = game.playTracks.map(t => t.name).join(',');
         // With 100 items, probability of same order is essentially 0
         expect(newOrder).not.toBe(originalOrder);
     });
@@ -522,7 +522,7 @@ describe('Debounced Save', () => {
         jest.advanceTimersByTime(TIMEOUTS.SAVE_DEBOUNCE + 50);
 
         expect(localStorage.setItem).toHaveBeenCalledWith(
-            'chasefreeze_v6',
+            'playpose_v7',
             expect.any(String)
         );
     });
@@ -594,11 +594,11 @@ describe('State Transitions', () => {
     test('should maintain state correctly', () => {
         const game = createTestGame();
 
-        game.state = 'CHASE';
-        expect(game.state).toBe('CHASE');
+        game.state = 'PLAY';
+        expect(game.state).toBe('PLAY');
 
-        game.state = 'FREEZE';
-        expect(game.state).toBe('FREEZE');
+        game.state = 'POSE';
+        expect(game.state).toBe('POSE');
 
         game.state = 'IDLE';
         expect(game.state).toBe('IDLE');

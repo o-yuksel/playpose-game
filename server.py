@@ -1,6 +1,10 @@
 """
 Local development server for Play · Pose.
 Serves static files and handles the playlist API.
+
+NOTE: This server is for local development only. The print() statements
+throughout provide debugging output for development purposes. In production,
+the Netlify function (netlify/functions/playlists.py) is used instead.
 """
 
 from http.server import HTTPServer, SimpleHTTPRequestHandler
