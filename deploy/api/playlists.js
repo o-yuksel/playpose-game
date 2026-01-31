@@ -14,16 +14,22 @@ const MOOD_CATEGORIES = {
 const AVAILABLE_MOODS = ["party", "workout", "relax", "focus", "sleep", "romance", "sad", "energize"];
 
 let ytmusic = null;
+let lastInitTime = 0;
+const MAX_CLIENT_AGE = 4 * 60 * 1000; // Reinitialize after 4 minutes
 
-async function getYTMusic() {
-  if (!ytmusic) {
+async function getYTMusic(forceReinit = false) {
+  const now = Date.now();
+  const isStale = (now - lastInitTime) > MAX_CLIENT_AGE;
+
+  if (!ytmusic || forceReinit || isStale) {
     ytmusic = new YTMusic();
     await ytmusic.initialize();
+    lastInitTime = now;
   }
   return ytmusic;
 }
 
-async function fetchMoodPlaylists(mood, limit = 10) {
+async function fetchMoodPlaylists(mood, limit = 10, retry = true) {
   try {
     const yt = await getYTMusic();
     const targetMood = MOOD_CATEGORIES[mood.toLowerCase()] || mood;
@@ -40,11 +46,16 @@ async function fetchMoodPlaylists(mood, limit = 10) {
     return playlists.length > 0 ? playlists : [];
   } catch (error) {
     console.error("Error fetching mood playlists:", error);
+    if (retry) {
+      console.log("Retrying with fresh client...");
+      await getYTMusic(true);
+      return fetchMoodPlaylists(mood, limit, false);
+    }
     return [];
   }
 }
 
-async function searchPlaylists(query, limit = 10) {
+async function searchPlaylists(query, limit = 10, retry = true) {
   try {
     const yt = await getYTMusic();
     const results = await yt.searchPlaylists(query);
@@ -60,6 +71,11 @@ async function searchPlaylists(query, limit = 10) {
     return playlists.length > 0 ? playlists : [];
   } catch (error) {
     console.error("Error searching playlists:", error);
+    if (retry) {
+      console.log("Retrying with fresh client...");
+      await getYTMusic(true);
+      return searchPlaylists(query, limit, false);
+    }
     return [];
   }
 }
